@@ -1,11 +1,14 @@
 using Microsoft.OpenApi.Models;
 using MongoDB.Driver;
 using DynamicMongoAPI.Services;
+using DynamicMongoAPI.Utils;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddJsonOptions(options => {
+    options.JsonSerializerOptions.Converters.Add(new RegexConverter());
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -16,18 +19,9 @@ builder.Services.AddSwaggerGen(c =>
         Description = "Dynamic MongoDB API - XavierGrid Project"
     });
     
-    // Organize endpoints into groups
-    c.TagActionsBy(api => {
-        var route = api.RelativePath?.ToLower() ?? "";
-        
-        if (route.StartsWith("api/") && route.Contains("/history")) return new[] { "Entity History" };
-        if (route.StartsWith("api/") && (route.Contains("/search") || route.Contains("/aggregate"))) return new[] { "Entity Advanced" };
-        if (route.StartsWith("api/")) return new[] { "Crud Entity" };
-        if (route.StartsWith("schemas/") && (route.Contains("/rules") || route.Contains("/relations"))) return new[] { "Rules and Relations" };
-        if (route.StartsWith("schemas/")) return new[] { "Schemas" };
-        
-        return new[] { "General" };
-    });
+    // Group endpoints by controller attributes
+    c.DocInclusionPredicate((docName, apiDesc) => true);
+    c.TagActionsBy(api => api.GroupName ?? "Default");
 });
 
 // Register MongoDB client
@@ -67,18 +61,25 @@ builder.WebHost.ConfigureKestrel(options =>
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-app.UseStaticFiles(); // Add static files middleware
 
+// Redirect root to Swagger UI - MUST be first middleware
+app.MapGet("/", context => {
+    context.Response.Redirect("/swagger");
+    return Task.CompletedTask;
+});
+
+// Only enable Swagger in Development
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "XavierGrid API v1");
-        c.RoutePrefix = "";
+        c.RoutePrefix = "swagger";
     });
 }
 
+app.UseStaticFiles(); // Static files middleware
 app.UseAuthorization();
 app.MapControllers();
 

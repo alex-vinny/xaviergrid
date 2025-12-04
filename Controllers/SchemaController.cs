@@ -4,6 +4,7 @@ using MongoDB.Bson;
 using DynamicMongoAPI.Models;
 using DynamicMongoAPI.Services;
 using System.Text.Json;
+using DynamicMongoAPI.Utils;
 
 namespace DynamicMongoAPI.Controllers
 {
@@ -29,7 +30,7 @@ namespace DynamicMongoAPI.Controllers
             try
             {
                 var masterDb = _client.GetDatabase(_masterSchemaDatabaseName);
-                var collection = masterDb.GetCollection<EntitySchema>("entitySchemas");
+                var schemasCollection = masterDb.GetCollection<EntitySchema>("schemas");
                 
                 // Check if the request body is an array or a single object
                 if (requestBody.ValueKind == JsonValueKind.Array)
@@ -38,30 +39,57 @@ namespace DynamicMongoAPI.Controllers
                     var schemas = new List<EntitySchema>();
                     foreach (var item in requestBody.EnumerateArray())
                     {
-                        var schema = System.Text.Json.JsonSerializer.Deserialize<EntitySchema>(item.GetRawText());
-                        if (schema != null)
+                        try
                         {
-                            // Validate the schema before adding it
-                            schema.Validate();
-                            schemas.Add(schema);
+                            var schema = System.Text.Json.JsonSerializer.Deserialize<EntitySchema>(item.GetRawText());
+                            if (schema != null)
+                            {
+                                // Validate the schema before adding it
+                                schema.Validate();
+                                
+                                // Ensure namespace exists
+                                await _schemaService.EnsureNamespaceExists(schema.Namespace);
+                                
+                                // Ensure entity exists
+                                await _schemaService.EnsureEntityExists(schema.Namespace, schema.EntityName);
+                                
+                                schemas.Add(schema);
+                            }
+                        }
+                        catch (JsonException ex)
+                        {
+                            return BadRequest(new { error = $"Invalid JSON format: {ex.Message}" });
                         }
                     }
                     
-                    await collection.InsertManyAsync(schemas);
+                    await schemasCollection.InsertManyAsync(schemas);
                     return Ok(new { message = $"{schemas.Count} schemas created successfully" });
                 }
                 else if (requestBody.ValueKind == JsonValueKind.Object)
                 {
                     // Handle single schema
-                    var schema = System.Text.Json.JsonSerializer.Deserialize<EntitySchema>(requestBody.GetRawText());
-                    if (schema == null)
-                        return BadRequest(new { error = "Invalid schema format" });
-                    
-                    // Validate the schema before saving it
-                    schema.Validate();
-                    
-                    await collection.InsertOneAsync(schema);
-                    return Ok(new { message = "Schema created successfully" });
+                    try
+                    {
+                        var schema = System.Text.Json.JsonSerializer.Deserialize<EntitySchema>(requestBody.GetRawText());
+                        if (schema == null)
+                            return BadRequest(new { error = "Invalid schema format" });
+                        
+                        // Validate the schema before saving it
+                        schema.Validate();
+                        
+                        // Ensure namespace exists
+                        await _schemaService.EnsureNamespaceExists(schema.Namespace);
+                        
+                        // Ensure entity exists
+                        await _schemaService.EnsureEntityExists(schema.Namespace, schema.EntityName);
+                        
+                        await schemasCollection.InsertOneAsync(schema);
+                        return Ok(new { message = "Schema created successfully" });
+                    }
+                    catch (JsonException ex)
+                    {
+                        return BadRequest(new { error = $"Invalid JSON format: {ex.Message}" });
+                    }
                 }
                 else
                 {

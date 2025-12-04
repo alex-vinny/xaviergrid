@@ -1,6 +1,7 @@
 # Dynamic MongoDB API - Comprehensive Tests
 
 ## Project: XavierGrid
+
 Honor to Sainth Francis Xavier 12/03 -- the day this project started
 
 ## Environment Variables
@@ -45,7 +46,7 @@ Content-Type: application/json
       {
         "action": "create",
         "field": "Email",
-        "allowedValues": ["^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"],
+        "allowedValues": ["^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"],
         "message": "Invalid email format"
       }
     ]
@@ -54,6 +55,7 @@ Content-Type: application/json
 ```
 
 Expected Response:
+
 ```json
 {
   "message": "1 schemas created successfully"
@@ -61,6 +63,7 @@ Expected Response:
 ```
 
 Note: The schema will be automatically converted to lowercase names:
+
 - namespace: "test"
 - entity: "users"
 - fields: "firstname", "lastname", "email"
@@ -90,6 +93,7 @@ Content-Type: application/json
 ```
 
 Expected Response:
+
 ```json
 {
   "error": "An error occurred while creating schemas: Field name 'id' is reserved and cannot be used"
@@ -140,6 +144,7 @@ Content-Type: application/json
 ```
 
 Expected Response:
+
 ```json
 {
   "message": "Schema created successfully"
@@ -162,6 +167,7 @@ Content-Type: application/json
 ```
 
 Expected Response:
+
 ```json
 {
   "_id": "507f1f77bcf86cd799439011",
@@ -181,6 +187,7 @@ GET /users/507f1f77bcf86cd799439011
 ```
 
 Expected Response:
+
 ```json
 {
   "_id": "507f1f77bcf86cd799439011",
@@ -205,6 +212,7 @@ Content-Type: application/json
 ```
 
 Expected Response:
+
 ```json
 {
   "message": "Document updated successfully"
@@ -218,6 +226,7 @@ DELETE /users/507f1f77bcf86cd799439011
 ```
 
 Expected Response:
+
 ```json
 {
   "message": "Document deleted successfully"
@@ -233,6 +242,7 @@ POST /users/507f1f77bcf86cd799439011/restore
 ```
 
 Expected Response:
+
 ```json
 {
   "message": "Document restored successfully"
@@ -248,6 +258,7 @@ POST /users/purge
 ```
 
 Expected Response:
+
 ```json
 {
   "message": "All documents purged for entity 'users'"
@@ -263,6 +274,7 @@ GET /users/507f1f77bcf86cd799439011/history?page=1&pageSize=10
 ```
 
 Expected Response:
+
 ```json
 {
   "total": 3,
@@ -323,11 +335,12 @@ GET /invoices/{invoiceId}
 ```
 
 Expected Response:
+
 ```json
 {
   "_id": "507f1f77bcf86cd799439013",
   "userid": "507f1f77bcf86cd799439011",
-  "amount": 100.50,
+  "amount": 100.5,
   "status": "paid",
   "isdeleted": false,
   "user": [
@@ -387,6 +400,7 @@ Content-Type: application/json
 ```
 
 Expected Response:
+
 ```json
 {
   "_id": "507f1f77bcf86cd799439014",
@@ -430,6 +444,7 @@ Content-Type: application/json
 ```
 
 Expected Response:
+
 ```json
 {
   "_id": "507f1f77bcf86cd799439015",
@@ -450,6 +465,7 @@ Content-Type: application/json
 ```
 
 Expected Response:
+
 ```json
 {
   "error": "Field 'status' must be one of: pending, processing, shipped, delivered"
@@ -495,6 +511,7 @@ Content-Type: application/json
 ```
 
 Expected Response:
+
 ```json
 {
   "_id": "507f1f77bcf86cd799439016",
@@ -558,6 +575,7 @@ Content-Type: application/json
 ```
 
 Expected Response:
+
 ```json
 [
   {
@@ -614,6 +632,7 @@ Content-Type: application/json
 ```
 
 Expected Response:
+
 ```json
 {
   "_id": "507f1f77bcf86cd799439017",
@@ -633,6 +652,7 @@ GET /system/functions
 ```
 
 Expected Response:
+
 ```json
 [
   {
@@ -690,6 +710,7 @@ GET /system/version
 ```
 
 Expected Response:
+
 ```json
 {
   "version": "1.0.0",
@@ -707,6 +728,7 @@ GET /schemas/users/rules
 ```
 
 Expected Response:
+
 ```json
 [
   {
@@ -725,6 +747,7 @@ GET /schemas/users/relations
 ```
 
 Expected Response:
+
 ```json
 [
   {
@@ -752,6 +775,7 @@ Content-Type: application/json
 ```
 
 Expected Response:
+
 ```json
 {
   "message": "1 rules added successfully"
@@ -774,6 +798,7 @@ Content-Type: application/json
 ```
 
 Expected Response:
+
 ```json
 {
   "message": "1 relations added successfully"
@@ -787,6 +812,7 @@ DELETE /schemas/users/rules
 ```
 
 Expected Response:
+
 ```json
 {
   "message": "All rules deleted successfully"
@@ -800,6 +826,7 @@ DELETE /schemas/users/relations
 ```
 
 Expected Response:
+
 ```json
 {
   "message": "All relations deleted successfully"
