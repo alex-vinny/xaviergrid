@@ -40,11 +40,24 @@ builder.Services.AddSingleton<MongoSchemaService>(provider =>
         provider.GetRequiredService<IMongoClient>(),
         masterSchemaDatabaseName
     ));
+
+// Register new services for separated concerns
+builder.Services.AddSingleton<IFieldFunctionService, FieldFunctionService>();
+builder.Services.AddSingleton<IValidationService, ValidationService>();
+builder.Services.AddSingleton<IRelationService, RelationService>();
+builder.Services.AddSingleton<IVirtualFieldService, VirtualFieldService>();
+builder.Services.AddSingleton<IQueryService, QueryService>();
+
 builder.Services.AddSingleton<DynamicMongoService>(provider =>
     new DynamicMongoService(
         provider.GetRequiredService<IMongoClient>(),
         provider.GetRequiredService<MongoSchemaService>(),
-        builder.Configuration
+        builder.Configuration,
+        provider.GetRequiredService<IFieldFunctionService>(),
+        provider.GetRequiredService<IValidationService>(),
+        provider.GetRequiredService<IRelationService>(),
+        provider.GetRequiredService<IVirtualFieldService>(),
+        provider.GetRequiredService<IQueryService>()
     ));
 
 // Configure Kestrel server options
