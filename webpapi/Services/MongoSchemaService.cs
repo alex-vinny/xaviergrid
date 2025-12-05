@@ -20,7 +20,7 @@ namespace DynamicMongoAPI.Services
         
         public async Task<EntitySchema> GetSchemaAsync(string entityName)
         {
-            var collection = _masterDb.GetCollection<EntitySchema>("entitySchemas");
+            var collection = _masterDb.GetCollection<EntitySchema>("schemas");
             var schema = await collection.Find(s => s.EntityName == entityName).FirstOrDefaultAsync();
             
             if (schema == null)
@@ -35,22 +35,28 @@ namespace DynamicMongoAPI.Services
             return _client.GetDatabase(databaseName);
         }
         
-        public async Task EnsureNamespaceExists(string namespaceName)
+        public async Task<string> EnsureNamespaceExists(string namespaceName)
         {
             var namespacesCollection = _masterDb.GetCollection<BsonDocument>("namespaces");
             var filter = Builders<BsonDocument>.Filter.Eq("name", namespaceName.ToLower());
             var existing = await namespacesCollection.Find(filter).FirstOrDefaultAsync();
             
-            if (existing == null)
+            if (existing != null)
             {
-                await namespacesCollection.InsertOneAsync(new BsonDocument
-                {
-                    { "name", namespaceName.ToLower() }
-                });
+                return existing["_id"].AsObjectId.ToString();
             }
+            
+            var newNamespace = new BsonDocument
+            {
+                { "_id", ObjectId.GenerateNewId() },
+                { "name", namespaceName.ToLower() }
+            };
+            
+            await namespacesCollection.InsertOneAsync(newNamespace);
+            return newNamespace["_id"].AsObjectId.ToString();
         }
         
-        public async Task EnsureEntityExists(string namespaceName, string entityName)
+        public async Task<BsonDocument> EnsureEntityExists(string namespaceName, string entityName)
         {
             var entitiesCollection = _masterDb.GetCollection<BsonDocument>("entities");
             var filter = Builders<BsonDocument>.Filter.Eq("name", entityName.ToLower()) &
@@ -58,14 +64,40 @@ namespace DynamicMongoAPI.Services
             
             var existing = await entitiesCollection.Find(filter).FirstOrDefaultAsync();
             
-            if (existing == null)
+            if (existing != null)
             {
-                await entitiesCollection.InsertOneAsync(new BsonDocument
-                {
-                    { "name", entityName.ToLower() },
-                    { "namespace", namespaceName.ToLower() }
-                });
+                return existing;
             }
+            
+            // Get the namespace ID
+            var namespacesCollection = _masterDb.GetCollection<BsonDocument>("namespaces");
+            var namespaceFilter = Builders<BsonDocument>.Filter.Eq("name", namespaceName.ToLower());
+            var namespaceDoc = await namespacesCollection.Find(namespaceFilter).FirstOrDefaultAsync();
+            
+            if (namespaceDoc != null)
+            {
+                var newEntity = new BsonDocument
+                {
+                    { "_id", ObjectId.GenerateNewId() },
+                    { "name", entityName.ToLower() },
+                    { "namespace", namespaceName.ToLower() },
+                    { "id_namespace", namespaceDoc["_id"].AsObjectId }
+                };
+                
+                await entitiesCollection.InsertOneAsync(newEntity);
+                return newEntity;
+            }
+            
+            return null;
+        }
+        
+        public async Task UpdateEntityWithSchemaId(string entityId, string schemaId)
+        {
+            var entitiesCollection = _masterDb.GetCollection<BsonDocument>("entities");
+            var filter = Builders<BsonDocument>.Filter.Eq("_id", ObjectId.Parse(entityId));
+            var update = Builders<BsonDocument>.Update.Set("id_schema", ObjectId.Parse(schemaId));
+            
+            await entitiesCollection.UpdateOneAsync(filter, update);
         }
     }
 }

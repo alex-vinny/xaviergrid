@@ -1,8 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
 using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
 using DynamicMongoAPI.Models;
 using DynamicMongoAPI.Services;
+using System.Text.Json;
+using System.Linq;
 
 namespace DynamicMongoAPI.Controllers
 {
@@ -21,7 +24,68 @@ namespace DynamicMongoAPI.Controllers
             _schemaService = schemaService;
             _dynamicMongoService = dynamicMongoService;
         }
-        
+
+        // Helper method to convert JsonElement to BsonDocument
+        private static BsonDocument JsonToBson(JsonElement json)
+        {
+            var jsonString = json.GetRawText();
+            return BsonSerializer.Deserialize<BsonDocument>(jsonString);
+        }
+
+        // Helper method to convert JsonElement array to BsonArray
+        private static BsonArray JsonToBsonArray(JsonElement json)
+        {
+            var jsonString = json.GetRawText();
+            return BsonSerializer.Deserialize<BsonArray>(jsonString);
+        }
+
+        // Helper method to convert BsonDocument to Dictionary for proper JSON serialization
+        private static Dictionary<string, object> BsonToDictionary(BsonDocument doc)
+        {
+            var dict = new Dictionary<string, object>();
+            foreach (var element in doc)
+            {
+                dict[element.Name] = BsonValueToNative(element.Value);
+            }
+            return dict;
+        }
+
+        // Helper method to convert BsonValue to native types
+        private static object BsonValueToNative(BsonValue value)
+        {
+            switch (value.BsonType)
+            {
+                case BsonType.ObjectId:
+                    return value.AsObjectId.ToString();
+                case BsonType.String:
+                    return value.AsString;
+                case BsonType.Boolean:
+                    return value.AsBoolean;
+                case BsonType.DateTime:
+                    return value.ToUniversalTime();
+                case BsonType.Double:
+                    return value.AsDouble;
+                case BsonType.Int32:
+                    return value.AsInt32;
+                case BsonType.Int64:
+                    return value.AsInt64;
+                case BsonType.Decimal128:
+                    return value.AsDecimal;
+                case BsonType.Array:
+                    var array = value.AsBsonArray;
+                    var list = new List<object>();
+                    foreach (var item in array)
+                    {
+                        list.Add(BsonValueToNative(item));
+                    }
+                    return list;
+                case BsonType.Document:
+                    return BsonToDictionary(value.AsBsonDocument);
+                default:
+                    return value.ToString();
+            }
+        }
+
         // Check if the entity name is a reserved route
         private bool IsReservedRoute(string entity)
         {
@@ -41,8 +105,9 @@ namespace DynamicMongoAPI.Controllers
         // ----------------------------
         [HttpPost]
         [ApiExplorerSettings(GroupName = "Crud Entity")]
-        public async Task<IActionResult> Create(string entity, [FromBody] BsonDocument doc)
+        public async Task<IActionResult> Create(string entity, [FromBody] JsonElement body)
         {
+            var doc = JsonToBson(body);
             // Ignore reserved routes
             if (IsReservedRoute(entity))
             {
@@ -80,7 +145,7 @@ namespace DynamicMongoAPI.Controllers
                 };
                 await histCollection.InsertOneAsync(histDoc);
                 
-                return Ok(doc);
+                return Ok(BsonToDictionary(doc));
             }
             catch (ArgumentException ex)
             {
@@ -134,7 +199,7 @@ namespace DynamicMongoAPI.Controllers
                     }
                 }
                 
-                return Ok(doc);
+                return Ok(BsonToDictionary(doc));
             }
             catch (ArgumentException ex)
             {
@@ -152,8 +217,9 @@ namespace DynamicMongoAPI.Controllers
         [ApiExplorerSettings(GroupName = "Crud Entity")]
         [HttpPatch("{id}")]
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(string entity, string id, [FromBody] BsonDocument updateDoc)
+        public async Task<IActionResult> Update(string entity, string id, [FromBody] JsonElement body)
         {
+            var updateDoc = JsonToBson(body);
             try
             {
                 var schema = await _schemaService.GetSchemaAsync(entity);
@@ -373,8 +439,9 @@ namespace DynamicMongoAPI.Controllers
         // DYNAMIC SEARCH
         // ----------------------------
         [HttpPost("search")]
-        public async Task<IActionResult> Search(string entity, [FromBody] BsonDocument query)
+        public async Task<IActionResult> Search(string entity, [FromBody] JsonElement body)
         {
+            var query = JsonToBson(body);
             try
             {
                 var schema = await _schemaService.GetSchemaAsync(entity);
@@ -405,7 +472,9 @@ namespace DynamicMongoAPI.Controllers
                     }
                 }
                 
-                return Ok(docs);
+                // Convert list of BsonDocuments to list of Dictionaries
+                var result = docs.Select(BsonToDictionary).ToList();
+                return Ok(result);
             }
             catch (ArgumentException ex)
             {
@@ -423,8 +492,9 @@ namespace DynamicMongoAPI.Controllers
         // DYNAMIC AGGREGATE
         // ----------------------------
         [HttpPost("aggregate")]
-        public async Task<IActionResult> Aggregate(string entity, [FromBody] BsonArray pipeline)
+        public async Task<IActionResult> Aggregate(string entity, [FromBody] JsonElement body)
         {
+            var pipeline = JsonToBsonArray(body);
             try
             {
                 var schema = await _schemaService.GetSchemaAsync(entity);
@@ -437,7 +507,9 @@ namespace DynamicMongoAPI.Controllers
                 var result = await collection.AggregateAsync<BsonDocument>(sanitizedPipeline);
                 var docs = await result.ToListAsync();
                 
-                return Ok(docs);
+                // Convert list of BsonDocuments to list of Dictionaries
+                var ret = docs.Select(BsonToDictionary).ToList();
+                return Ok(ret);
             }
             catch (ArgumentException ex)
             {

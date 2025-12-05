@@ -3,6 +3,7 @@ using MongoDB.Driver;
 using DynamicMongoAPI.Models;
 using BCrypt.Net;
 using System.Text.RegularExpressions;
+using DynamicMongoAPI.Constants;
 
 namespace DynamicMongoAPI.Services
 {
@@ -16,7 +17,7 @@ namespace DynamicMongoAPI.Services
         {
             _client = client;
             _schemaService = schemaService;
-            _masterSchemaDatabaseName = configuration["MongoDB:MasterSchemaDatabase"] ?? "masterSchemas";
+            _masterSchemaDatabaseName = configuration["MongoDB:MasterSchemaDatabase"] ?? AppConstants.MasterSchemaDatabaseName;
         }
         
         // Function registry - centralized place to define all available functions

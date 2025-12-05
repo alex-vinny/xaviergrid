@@ -2,6 +2,7 @@ using Microsoft.OpenApi.Models;
 using MongoDB.Driver;
 using DynamicMongoAPI.Services;
 using DynamicMongoAPI.Utils;
+using DynamicMongoAPI.Constants;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,7 +32,9 @@ var mongoConnectionString = Environment.GetEnvironmentVariable("MONGODB_CONNECTI
 builder.Services.AddSingleton<IMongoClient>(new MongoClient(mongoConnectionString));
 
 // Register services
-var masterSchemaDatabaseName = builder.Configuration["MongoDB:MasterSchemaDatabase"] ?? "masterSchemas";
+var masterSchemaDatabaseName = Environment.GetEnvironmentVariable("MONGODB_MASTER_DATABASE")
+    ?? builder.Configuration["MongoDB:MasterSchemaDatabase"]
+    ?? AppConstants.MasterSchemaDatabaseName;
 builder.Services.AddSingleton<MongoSchemaService>(provider =>
     new MongoSchemaService(
         provider.GetRequiredService<IMongoClient>(),
@@ -62,24 +65,19 @@ var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 
-// Redirect root to Swagger UI - MUST be first middleware
+// Enable Swagger (always, not just in Development)
+app.UseSwagger();
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "XavierGrid API v1");
+    c.RoutePrefix = "swagger";
+});
+
+// Redirect root to Swagger UI
 app.MapGet("/", context => {
     context.Response.Redirect("/swagger");
     return Task.CompletedTask;
 });
-
-// Only enable Swagger in Development
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "XavierGrid API v1");
-        c.RoutePrefix = "swagger";
-    });
-}
-
-app.UseStaticFiles(); // Static files middleware
 app.UseAuthorization();
 app.MapControllers();
 

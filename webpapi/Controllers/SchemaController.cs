@@ -4,6 +4,7 @@ using MongoDB.Bson;
 using DynamicMongoAPI.Models;
 using DynamicMongoAPI.Services;
 using System.Text.Json;
+using DynamicMongoAPI.Constants;
 using DynamicMongoAPI.Utils;
 
 namespace DynamicMongoAPI.Controllers
@@ -21,7 +22,7 @@ namespace DynamicMongoAPI.Controllers
         {
             _client = client;
             _schemaService = schemaService;
-            _masterSchemaDatabaseName = configuration["MongoDB:MasterSchemaDatabase"] ?? "masterSchemas";
+            _masterSchemaDatabaseName = configuration["MongoDB:MasterSchemaDatabase"] ?? AppConstants.MasterSchemaDatabaseName;
         }
         
         [HttpPost]
@@ -31,12 +32,13 @@ namespace DynamicMongoAPI.Controllers
             {
                 var masterDb = _client.GetDatabase(_masterSchemaDatabaseName);
                 var schemasCollection = masterDb.GetCollection<EntitySchema>("schemas");
-                
+
                 // Check if the request body is an array or a single object
                 if (requestBody.ValueKind == JsonValueKind.Array)
                 {
                     // Handle array of schemas
                     var schemas = new List<EntitySchema>();
+                    var entityNamesInRequest = new HashSet<string>();
                     foreach (var item in requestBody.EnumerateArray())
                     {
                         try
@@ -44,15 +46,24 @@ namespace DynamicMongoAPI.Controllers
                             var schema = System.Text.Json.JsonSerializer.Deserialize<EntitySchema>(item.GetRawText());
                             if (schema != null)
                             {
-                                // Validate the schema before adding it
+                                // Validate the schema to ensure entity name is lowercase
                                 schema.Validate();
-                                
+
+                                // Check if schema already exists in the database
+                                var existing = await schemasCollection.Find(s => s.EntityName == schema.EntityName).FirstOrDefaultAsync();
+                                if (existing != null)
+                                    return Conflict(new { error = $"Schema for entity '{schema.EntityName}' already exists. Use PUT or PATCH to update." });
+
+                                // Check if this entity name is already in the current request (duplicate in array)
+                                if (entityNamesInRequest.Contains(schema.EntityName))
+                                    return Conflict(new { error = $"Duplicate schema for entity '{schema.EntityName}' in the same request." });
+
+                                // Add entity name to the set for duplicate checking
+                                entityNamesInRequest.Add(schema.EntityName);
+
                                 // Ensure namespace exists
-                                await _schemaService.EnsureNamespaceExists(schema.Namespace);
-                                
-                                // Ensure entity exists
-                                await _schemaService.EnsureEntityExists(schema.Namespace, schema.EntityName);
-                                
+                                var namespaceId = await _schemaService.EnsureNamespaceExists(schema.Namespace);
+
                                 schemas.Add(schema);
                             }
                         }
@@ -61,8 +72,19 @@ namespace DynamicMongoAPI.Controllers
                             return BadRequest(new { error = $"Invalid JSON format: {ex.Message}" });
                         }
                     }
-                    
+
                     await schemasCollection.InsertManyAsync(schemas);
+                    
+                    // Update entities with schema IDs
+                    foreach (var schema in schemas)
+                    {
+                        var entity = await _schemaService.EnsureEntityExists(schema.Namespace, schema.EntityName);
+                        if (entity != null && !string.IsNullOrEmpty(schema.Id))
+                        {
+                            await _schemaService.UpdateEntityWithSchemaId(entity["_id"].AsObjectId.ToString(), schema.Id);
+                        }
+                    }
+                    
                     return Ok(new { message = $"{schemas.Count} schemas created successfully" });
                 }
                 else if (requestBody.ValueKind == JsonValueKind.Object)
@@ -73,17 +95,27 @@ namespace DynamicMongoAPI.Controllers
                         var schema = System.Text.Json.JsonSerializer.Deserialize<EntitySchema>(requestBody.GetRawText());
                         if (schema == null)
                             return BadRequest(new { error = "Invalid schema format" });
-                        
+
                         // Validate the schema before saving it
                         schema.Validate();
-                        
+
+                        // Check if schema already exists
+                        var existing = await schemasCollection.Find(s => s.EntityName == schema.EntityName).FirstOrDefaultAsync();
+                        if (existing != null)
+                            return Conflict(new { error = $"Schema for entity '{schema.EntityName}' already exists. Use PUT or PATCH to update." });
+
                         // Ensure namespace exists
-                        await _schemaService.EnsureNamespaceExists(schema.Namespace);
-                        
-                        // Ensure entity exists
-                        await _schemaService.EnsureEntityExists(schema.Namespace, schema.EntityName);
-                        
+                        var namespaceId = await _schemaService.EnsureNamespaceExists(schema.Namespace);
+
                         await schemasCollection.InsertOneAsync(schema);
+                        
+                        // Update entity with schema ID
+                        var entity = await _schemaService.EnsureEntityExists(schema.Namespace, schema.EntityName);
+                        if (entity != null && !string.IsNullOrEmpty(schema.Id))
+                        {
+                            await _schemaService.UpdateEntityWithSchemaId(entity["_id"].AsObjectId.ToString(), schema.Id);
+                        }
+                        
                         return Ok(new { message = "Schema created successfully" });
                     }
                     catch (JsonException ex)
@@ -101,6 +133,56 @@ namespace DynamicMongoAPI.Controllers
                 return StatusCode(500, new { error = $"An error occurred while creating schemas: {ex.Message}" });
             }
         }
+
+        [HttpPut("{entityName}")]
+        [HttpPatch("{entityName}")]
+        public async Task<IActionResult> UpdateSchema(string entityName, [FromBody] JsonElement requestBody)
+        {
+            try
+            {
+                var masterDb = _client.GetDatabase(_masterSchemaDatabaseName);
+                var schemasCollection = masterDb.GetCollection<EntitySchema>("schemas");
+
+                // Check if schema exists
+                var existing = await schemasCollection.Find(s => s.EntityName == entityName.ToLower()).FirstOrDefaultAsync();
+                if (existing == null)
+                    return NotFound(new { error = $"Schema for entity '{entityName}' not found" });
+
+                var schema = System.Text.Json.JsonSerializer.Deserialize<EntitySchema>(requestBody.GetRawText());
+                if (schema == null)
+                    return BadRequest(new { error = "Invalid schema format" });
+
+                // Validate the schema before saving it
+                schema.Validate();
+
+                // Keep the same ID
+                schema.Id = existing.Id;
+
+                // Ensure namespace exists if changed
+                await _schemaService.EnsureNamespaceExists(schema.Namespace);
+
+                // Replace the schema
+                var filter = Builders<EntitySchema>.Filter.Eq(s => s.Id, existing.Id);
+                await schemasCollection.ReplaceOneAsync(filter, schema);
+
+                // Update entity with schema ID
+                var entity = await _schemaService.EnsureEntityExists(schema.Namespace, schema.EntityName);
+                if (entity != null && !string.IsNullOrEmpty(schema.Id))
+                {
+                    await _schemaService.UpdateEntityWithSchemaId(entity["_id"].AsObjectId.ToString(), schema.Id);
+                }
+
+                return Ok(new { message = "Schema updated successfully" });
+            }
+            catch (JsonException ex)
+            {
+                return BadRequest(new { error = $"Invalid JSON format: {ex.Message}" });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = $"An error occurred while updating schema: {ex.Message}" });
+            }
+        }
         
         [HttpGet]
         public async Task<IActionResult> GetSchemas()
@@ -108,7 +190,7 @@ namespace DynamicMongoAPI.Controllers
             try
             {
                 var masterDb = _client.GetDatabase(_masterSchemaDatabaseName);
-                var collection = masterDb.GetCollection<EntitySchema>("entitySchemas");
+                var collection = masterDb.GetCollection<EntitySchema>("schemas");
                 var schemas = await collection.Find(_ => true).ToListAsync();
                 return Ok(schemas);
             }
@@ -186,8 +268,8 @@ namespace DynamicMongoAPI.Controllers
                 var schema = await _schemaService.GetSchemaAsync(entityName);
                 
                 var masterDb = _client.GetDatabase(_masterSchemaDatabaseName);
-                var collection = masterDb.GetCollection<EntitySchema>("entitySchemas");
-                
+                var collection = masterDb.GetCollection<EntitySchema>("schemas");
+
                 // Add new rules to existing ones
                 if (schema.Rules == null)
                     schema.Rules = new List<RuleDefinition>();
@@ -220,8 +302,8 @@ namespace DynamicMongoAPI.Controllers
                 var schema = await _schemaService.GetSchemaAsync(entityName);
                 
                 var masterDb = _client.GetDatabase(_masterSchemaDatabaseName);
-                var collection = masterDb.GetCollection<EntitySchema>("entitySchemas");
-                
+                var collection = masterDb.GetCollection<EntitySchema>("schemas");
+
                 // Add new relations to existing ones
                 if (schema.Relations == null)
                     schema.Relations = new List<SchemaRelation>();
@@ -254,8 +336,8 @@ namespace DynamicMongoAPI.Controllers
                 var schema = await _schemaService.GetSchemaAsync(entityName);
                 
                 var masterDb = _client.GetDatabase(_masterSchemaDatabaseName);
-                var collection = masterDb.GetCollection<EntitySchema>("entitySchemas");
-                
+                var collection = masterDb.GetCollection<EntitySchema>("schemas");
+
                 // Clear all rules
                 schema.Rules = new List<RuleDefinition>();
                 
@@ -285,8 +367,8 @@ namespace DynamicMongoAPI.Controllers
                 var schema = await _schemaService.GetSchemaAsync(entityName);
                 
                 var masterDb = _client.GetDatabase(_masterSchemaDatabaseName);
-                var collection = masterDb.GetCollection<EntitySchema>("entitySchemas");
-                
+                var collection = masterDb.GetCollection<EntitySchema>("schemas");
+
                 // Clear all relations
                 schema.Relations = new List<SchemaRelation>();
                 

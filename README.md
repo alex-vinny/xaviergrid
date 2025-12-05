@@ -113,12 +113,12 @@ docker run -it --rm -p 5000:5000 -e PORT=5000 -e MONGODB_CONNECTION="mongodb://l
 docker run -it --rm xavigrid-api /bin/bash
 
 # Complete command to debug
-docker run -it --rm -w /app -v ${PWD}:/app/ -p 5000:5000 -e PORT=5000 -e MONGODB_CONNECTION="mongodb://localhost:27017" mcr.microsoft.com/dotnet/sdk:8.0 /bin/bash
+docker run -it --rm -w /app -v ${PWD}:/app/ -p 5000:5000 -e PORT=5000 -e MONGODB_CONNECTION="mongodb://localhost:27017" -e MONGODB_MASTER_DATABASE=masterSchemas mcr.microsoft.com/dotnet/sdk:8.0 /bin/bash
 
 # Development commands
 # Clean, restore, and build the project
 dotnet clean && dotnet restore && dotnet build
 
 # Run the application
-dotnet run
+dotnet run --project webpapi/DynamicMongoAPI.csproj
 ```

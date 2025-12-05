@@ -151,12 +151,26 @@ Expected Response:
 }
 ```
 
-## 2. CRUD Operations
+## 2. CRUD Operations - /api/{entity}
+
+All entity CRUD operations use the `/api/{entity}` endpoint pattern.
 
 ### Create Document
 
+```bash
+curl -X 'POST' \
+  'http://localhost:5000/api/users' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "firstname": "John",
+  "lastname": "Doe",
+  "email": "john.doe@example.com"
+}'
+```
+
+**Request:**
 ```http
-POST /users
+POST /api/users
 Content-Type: application/json
 
 {
@@ -166,44 +180,94 @@ Content-Type: application/json
 }
 ```
 
-Expected Response:
-
+**Response:**
 ```json
 {
   "_id": "507f1f77bcf86cd799439011",
   "firstname": "John",
   "lastname": "Doe",
   "email": "john.doe@example.com",
-  "isdeleted": false,
-  "createdat": "2023-01-01T00:00:00.000Z",
-  "updatedat": "2023-01-01T00:00:00.000Z"
+  "isDeleted": false,
+  "createdAt": "2023-01-01T00:00:00.000Z",
+  "updatedAt": "2023-01-01T00:00:00.000Z"
 }
 ```
 
-### Get Document
+---
 
-```http
-GET /users/507f1f77bcf86cd799439011
+### Get All Documents
+
+```bash
+curl -X 'GET' 'http://localhost:5000/api/users'
 ```
 
-Expected Response:
+**Request:**
+```http
+GET /api/users
+```
 
+**Response:**
+```json
+[
+  {
+    "_id": "507f1f77bcf86cd799439011",
+    "firstname": "John",
+    "lastname": "Doe",
+    "email": "john.doe@example.com",
+    "isDeleted": false
+  },
+  {
+    "_id": "507f1f77bcf86cd799439012",
+    "firstname": "Jane",
+    "lastname": "Smith",
+    "email": "jane.smith@example.com",
+    "isDeleted": false
+  }
+]
+```
+
+---
+
+### Get Document by ID
+
+```bash
+curl -X 'GET' 'http://localhost:5000/api/users/507f1f77bcf86cd799439011'
+```
+
+**Request:**
+```http
+GET /api/users/507f1f77bcf86cd799439011
+```
+
+**Response:**
 ```json
 {
   "_id": "507f1f77bcf86cd799439011",
   "firstname": "John",
   "lastname": "Doe",
   "email": "john.doe@example.com",
-  "isdeleted": false,
-  "createdat": "2023-01-01T00:00:00.000Z",
-  "updatedat": "2023-01-01T00:00:00.000Z"
+  "isDeleted": false,
+  "createdAt": "2023-01-01T00:00:00.000Z",
+  "updatedAt": "2023-01-01T00:00:00.000Z"
 }
 ```
 
-### Update Document
+---
 
+### Update Document (PUT or PATCH)
+
+```bash
+curl -X 'PUT' \
+  'http://localhost:5000/api/users/507f1f77bcf86cd799439011' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "firstname": "Jane"
+}'
+```
+
+**Request:**
 ```http
-PUT /users/507f1f77bcf86cd799439011
+PUT /api/users/507f1f77bcf86cd799439011
 Content-Type: application/json
 
 {
@@ -211,25 +275,170 @@ Content-Type: application/json
 }
 ```
 
-Expected Response:
-
+**Response:**
 ```json
 {
   "message": "Document updated successfully"
 }
 ```
 
+---
+
 ### Delete Document (Soft Delete)
 
-```http
-DELETE /users/507f1f77bcf86cd799439011
+```bash
+curl -X 'DELETE' 'http://localhost:5000/api/users/507f1f77bcf86cd799439011'
 ```
 
-Expected Response:
+**Request:**
+```http
+DELETE /api/users/507f1f77bcf86cd799439011
+```
 
+**Response:**
 ```json
 {
   "message": "Document deleted successfully"
+}
+```
+
+---
+
+### Restore Document
+
+```bash
+curl -X 'POST' 'http://localhost:5000/api/users/507f1f77bcf86cd799439011/restore'
+```
+
+**Request:**
+```http
+POST /api/users/507f1f77bcf86cd799439011/restore
+```
+
+**Response:**
+```json
+{
+  "message": "Document restored successfully"
+}
+```
+
+---
+
+### Get Document History
+
+```bash
+curl -X 'GET' 'http://localhost:5000/api/users/507f1f77bcf86cd799439011/history?page=1&pageSize=10'
+```
+
+**Request:**
+```http
+GET /api/users/507f1f77bcf86cd799439011/history?page=1&pageSize=10
+```
+
+**Response:**
+```json
+{
+  "total": 3,
+  "page": 1,
+  "pageSize": 10,
+  "data": [
+    {
+      "_id": "507f1f77bcf86cd799439012",
+      "documentId": "507f1f77bcf86cd799439011",
+      "version": 3,
+      "data": { ... },
+      "timestamp": "2023-01-02T00:00:00.000Z",
+      "action": "update"
+    }
+  ]
+}
+```
+
+---
+
+### Search Documents
+
+```bash
+curl -X 'POST' \
+  'http://localhost:5000/api/users/search' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "firstname": "John"
+}'
+```
+
+**Request:**
+```http
+POST /api/users/search
+Content-Type: application/json
+
+{
+  "firstname": "John"
+}
+```
+
+**Response:**
+```json
+[
+  {
+    "_id": "507f1f77bcf86cd799439011",
+    "firstname": "John",
+    "lastname": "Doe",
+    "email": "john.doe@example.com"
+  }
+]
+```
+
+---
+
+### Aggregate Documents
+
+```bash
+curl -X 'POST' \
+  'http://localhost:5000/api/users/aggregate' \
+  -H 'Content-Type: application/json' \
+  -d '[
+  { "$match": { "isDeleted": false } },
+  { "$group": { "_id": "$lastname", "count": { "$sum": 1 } } }
+]'
+```
+
+**Request:**
+```http
+POST /api/users/aggregate
+Content-Type: application/json
+
+[
+  { "$match": { "isDeleted": false } },
+  { "$group": { "_id": "$lastname", "count": { "$sum": 1 } } }
+]
+```
+
+**Response:**
+```json
+[
+  { "_id": "Doe", "count": 5 },
+  { "_id": "Smith", "count": 3 }
+]
+```
+
+---
+
+### Purge All Documents
+
+```bash
+curl -X 'POST' 'http://localhost:5000/api/users/purge'
+```
+
+**Request:**
+```http
+POST /api/users/purge
+```
+
+**Response:**
+```json
+{
+  "message": "All documents purged for entity 'users'"
 }
 ```
 
