@@ -169,6 +169,7 @@ curl -X 'POST' \
 ```
 
 **Request:**
+
 ```http
 POST /api/users
 Content-Type: application/json
@@ -181,6 +182,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
   "_id": "507f1f77bcf86cd799439011",
@@ -202,11 +204,13 @@ curl -X 'GET' 'http://localhost:5000/api/users'
 ```
 
 **Request:**
+
 ```http
 GET /api/users
 ```
 
 **Response:**
+
 ```json
 [
   {
@@ -235,11 +239,13 @@ curl -X 'GET' 'http://localhost:5000/api/users/507f1f77bcf86cd799439011'
 ```
 
 **Request:**
+
 ```http
 GET /api/users/507f1f77bcf86cd799439011
 ```
 
 **Response:**
+
 ```json
 {
   "_id": "507f1f77bcf86cd799439011",
@@ -266,6 +272,7 @@ curl -X 'PUT' \
 ```
 
 **Request:**
+
 ```http
 PUT /api/users/507f1f77bcf86cd799439011
 Content-Type: application/json
@@ -276,6 +283,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
   "message": "Document updated successfully"
@@ -291,11 +299,13 @@ curl -X 'DELETE' 'http://localhost:5000/api/users/507f1f77bcf86cd799439011'
 ```
 
 **Request:**
+
 ```http
 DELETE /api/users/507f1f77bcf86cd799439011
 ```
 
 **Response:**
+
 ```json
 {
   "message": "Document deleted successfully"
@@ -311,11 +321,13 @@ curl -X 'POST' 'http://localhost:5000/api/users/507f1f77bcf86cd799439011/restore
 ```
 
 **Request:**
+
 ```http
 POST /api/users/507f1f77bcf86cd799439011/restore
 ```
 
 **Response:**
+
 ```json
 {
   "message": "Document restored successfully"
@@ -331,11 +343,13 @@ curl -X 'GET' 'http://localhost:5000/api/users/507f1f77bcf86cd799439011/history?
 ```
 
 **Request:**
+
 ```http
 GET /api/users/507f1f77bcf86cd799439011/history?page=1&pageSize=10
 ```
 
 **Response:**
+
 ```json
 {
   "total": 3,
@@ -363,26 +377,28 @@ curl -X 'POST' \
   'http://localhost:5000/api/users/search' \
   -H 'Content-Type: application/json' \
   -d '{
-  "firstname": "John"
+  "firstname": "Jane"
 }'
 ```
 
 **Request:**
+
 ```http
 POST /api/users/search
 Content-Type: application/json
 
 {
-  "firstname": "John"
+  "firstname": "Jane"
 }
 ```
 
 **Response:**
+
 ```json
 [
   {
     "_id": "507f1f77bcf86cd799439011",
-    "firstname": "John",
+    "firstname": "Jane",
     "lastname": "Doe",
     "email": "john.doe@example.com"
   }
@@ -404,6 +420,7 @@ curl -X 'POST' \
 ```
 
 **Request:**
+
 ```http
 POST /api/users/aggregate
 Content-Type: application/json
@@ -415,6 +432,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 [
   { "_id": "Doe", "count": 5 },
@@ -431,16 +449,20 @@ curl -X 'POST' 'http://localhost:5000/api/users/purge'
 ```
 
 **Request:**
+
 ```http
 POST /api/users/purge
 ```
 
 **Response:**
+
 ```json
 {
   "message": "All documents purged for entity 'users'"
 }
 ```
+
+After purge, one cannot restore the data anymore -- this is hard delete.
 
 ## 3. Soft Delete and Restore
 
@@ -473,6 +495,8 @@ Expected Response:
   "message": "All documents purged for entity 'users'"
 }
 ```
+
+After purge, one cannot restore the data anymore -- this is hard delete.
 
 ## 5. History/Versioning
 
@@ -760,6 +784,35 @@ Content-Type: application/json
 }
 ```
 
+### Enhanced Search with Properties Selection
+
+```http
+POST /users/search
+Content-Type: application/json
+
+{
+  "filters": [
+    {
+      "firstname": "Jane"
+    }
+  ],
+  "properties": [
+    "firstname",
+    "lastname",
+    {
+      "fullname": {
+        "concat": ["firstname", " ", "lastname"]
+      }
+    }
+  ],
+  "skip": 0,
+  "limit": 20,
+  "ordering": {
+    "createdAt": "asc"
+  }
+}
+```
+
 ## 11. Dynamic Aggregation
 
 ### Aggregation Pipeline
@@ -777,7 +830,9 @@ Content-Type: application/json
   {
     "$group": {
       "_id": "$department",
-      "count": { "$sum": 1 }
+      "count": {
+        "$sum": 1
+      }
     }
   }
 ]
@@ -1039,5 +1094,184 @@ Expected Response:
 ```json
 {
   "message": "All relations deleted successfully"
+}
+```
+
+## 15. Enhanced Features
+
+### Get All Documents with Pagination
+
+```http
+GET /api/users?skip=0&limit=20
+```
+
+This endpoint calls the search functionality internally with pagination parameters.
+
+Expected Response:
+
+```json
+{
+  "total": 42,
+  "skip": 0,
+  "limit": 20,
+  "data": [
+    {
+      "_id": "507f1f77bcf86cd799439011",
+      "firstname": "John",
+      "lastname": "Doe",
+      "email": "john.doe@example.com",
+      "isDeleted": false
+    },
+    {
+      "_id": "507f1f77bcf86cd799439012",
+      "firstname": "Jane",
+      "lastname": "Smith",
+      "email": "jane.smith@example.com",
+      "isDeleted": false
+    }
+  ]
+}
+```
+
+### Schema Evolution Examples
+
+#### Adding New Fields
+
+```http
+PUT /schemas/users
+Content-Type: application/json
+
+{
+  "namespace": "test",
+  "entity": "users",
+  "fields": [
+    {
+      "name": "firstname",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "lastname",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "email",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "age",
+      "type": "int",
+      "required": false
+    }
+  ]
+}
+```
+
+#### Adding New Enum Values
+
+```http
+PUT /schemas/orders
+Content-Type: application/json
+
+{
+  "namespace": "test",
+  "entity": "orders",
+  "fields": [
+    {
+      "name": "status",
+      "type": "string",
+      "enum": ["pending", "processing", "shipped", "delivered", "returned", "cancelled"]
+    }
+  ]
+}
+```
+
+#### Removing Fields
+
+```http
+PUT /schemas/users
+Content-Type: application/json
+
+{
+  "namespace": "test",
+  "entity": "users",
+  "fields": [
+    {
+      "name": "firstname",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "lastname",
+      "type": "string",
+      "required": true
+    }
+    // email field removed
+  ]
+}
+```
+
+#### Creating Products Schema
+
+```http
+POST /schemas
+Content-Type: application/json
+
+{
+  "namespace": "test",
+  "entity": "products",
+  "fields": [
+    {
+      "name": "name",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "price",
+      "type": "decimal",
+      "required": true
+    },
+    {
+      "name": "category",
+      "type": "string",
+      "enum": ["electronics", "clothing", "books", "home"]
+    },
+    {
+      "name": "inStock",
+      "type": "boolean",
+      "required": true
+    }
+  ]
+}
+```
+
+#### Creating Product Document
+
+```http
+POST /products
+Content-Type: application/json
+
+{
+  "name": "Wireless Headphones",
+  "price": 99.99,
+  "category": "electronics",
+  "inStock": true
+}
+```
+
+Expected Response:
+
+```json
+{
+  "_id": "507f1f77bcf86cd799439020",
+  "name": "Wireless Headphones",
+  "price": 99.99,
+  "category": "electronics",
+  "inStock": true,
+  "isDeleted": false,
+  "createdAt": "2023-01-01T00:00:00.000Z",
+  "updatedAt": "2023-01-01T00:00:00.000Z"
 }
 ```

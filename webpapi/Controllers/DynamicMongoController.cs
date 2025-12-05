@@ -420,17 +420,81 @@ namespace DynamicMongoAPI.Controllers
                                          .Limit(pageSize)
                                          .ToListAsync();
                 
+                // Convert BsonDocuments to Dictionary objects for proper JSON serialization
+                var resultData = docs.Select(BsonToDictionary).ToList();
+                
                 return Ok(new
                 {
                     total,
                     page,
                     pageSize,
-                    data = docs
+                    data = resultData
                 });
             }
             catch (Exception ex)
             {
                 return StatusCode(500, new { error = $"An error occurred while retrieving history: {ex.Message}" });
+            }
+        }
+        
+        // ----------------------------
+        // GET ALL DOCUMENTS (with pagination)
+        // ----------------------------
+        [HttpGet]
+        public async Task<IActionResult> GetAll(string entity, int skip = 0, int limit = 20)
+        {
+            try
+            {
+                var schema = await _schemaService.GetSchemaAsync(entity);
+                var db = _schemaService.GetDatabase(schema);
+                var collection = db.GetCollection<BsonDocument>(entity);
+                
+                // Build filter for non-deleted documents
+                var filter = Builders<BsonDocument>.Filter.Ne("isDeleted", true);
+                
+                // Get total count
+                var total = await collection.CountDocumentsAsync(filter);
+                
+                // Get paginated documents
+                var docs = await collection.Find(filter)
+                                         .Skip(skip)
+                                         .Limit(limit)
+                                         .ToListAsync();
+                
+                // Apply relations & virtual fields
+                foreach (var doc in docs)
+                {
+                    await _dynamicMongoService.ApplyRelations(doc, schema, db);
+                    
+                    if (schema.VirtualFields != null)
+                    {
+                        foreach (var vf in schema.VirtualFields)
+                        {
+                            var name = vf.Name;
+                            var expr = vf.Expression;
+                            doc[name] = _dynamicMongoService.EvaluateVirtualField(expr, doc);
+                        }
+                    }
+                }
+                
+                // Convert list of BsonDocuments to list of Dictionaries
+                var result = docs.Select(BsonToDictionary).ToList();
+                
+                return Ok(new
+                {
+                    total,
+                    skip,
+                    limit,
+                    data = result
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = $"An error occurred while retrieving documents: {ex.Message}" });
             }
         }
         
