@@ -25,44 +25,7 @@ builder.Services.AddSwaggerGen(c =>
     c.TagActionsBy(api => api.GroupName ?? "Default");
 });
 
-// Register MongoDB client
-var mongoConnectionString = Environment.GetEnvironmentVariable("MONGODB_CONNECTION")
-    ?? builder.Configuration.GetConnectionString("MongoDB")
-    ?? builder.Configuration["MongoDB:ConnectionString"];
-builder.Services.AddSingleton<IMongoClient>(new MongoClient(mongoConnectionString));
-
-// Register services
-var masterSchemaDatabaseName = Environment.GetEnvironmentVariable("MONGODB_MASTER_DATABASE")
-    ?? builder.Configuration["MongoDB:MasterSchemaDatabase"]
-    ?? AppConstants.MasterSchemaDatabaseName;
-builder.Services.AddSingleton<MongoSchemaService>(provider =>
-    new MongoSchemaService(
-        provider.GetRequiredService<IMongoClient>(),
-        masterSchemaDatabaseName
-    ));
-
-// Register new services for separated concerns
-builder.Services.AddSingleton<IFieldFunctionService, FieldFunctionService>();
-builder.Services.AddSingleton<IValidationService, ValidationService>();
-builder.Services.AddSingleton<IRelationService, RelationService>();
-builder.Services.AddSingleton<IVirtualFieldService, VirtualFieldService>();
-builder.Services.AddSingleton<IJsonQueryLangMongoTranslator, JsonQueryLangMongoTranslator>();
-builder.Services.AddSingleton<IQueryService, QueryService>(provider =>
-    new QueryService(
-        provider.GetRequiredService<IJsonQueryLangMongoTranslator>()
-    ));
-
-builder.Services.AddSingleton<DynamicMongoService>(provider =>
-    new DynamicMongoService(
-        provider.GetRequiredService<IMongoClient>(),
-        provider.GetRequiredService<MongoSchemaService>(),
-        builder.Configuration,
-        provider.GetRequiredService<IFieldFunctionService>(),
-        provider.GetRequiredService<IValidationService>(),
-        provider.GetRequiredService<IRelationService>(),
-        provider.GetRequiredService<IVirtualFieldService>(),
-        provider.GetRequiredService<IQueryService>()
-    ));
+builder.Services.AddMongoServices(builder.Configuration);
 
 // Configure Kestrel server options
 var port = Environment.GetEnvironmentVariable("PORT");

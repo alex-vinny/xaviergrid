@@ -1,10 +1,5 @@
-using Microsoft.AspNetCore.Mvc;
-using MongoDB.Bson;
-using DynamicMongoAPI.Models;
 using DynamicMongoAPI.Services;
-using System.Text.Json;
-using System.Linq;
-using DynamicMongoAPI.Utils;
+using Microsoft.AspNetCore.Mvc;
 
 namespace DynamicMongoAPI.Controllers
 {
@@ -13,13 +8,11 @@ namespace DynamicMongoAPI.Controllers
     [ApiExplorerSettings(GroupName = "Entity History")]
     public class EntityHistoryController : ControllerBase
     {
-        private readonly MongoSchemaService _schemaService;
-        private readonly DynamicMongoService _dynamicMongoService;
+        private readonly IHistoryService _historyService;
         
-        public EntityHistoryController(MongoSchemaService schemaService, DynamicMongoService dynamicMongoService)
+        public EntityHistoryController(IHistoryService historyService)
         {
-            _schemaService = schemaService;
-            _dynamicMongoService = dynamicMongoService;
+            _historyService = historyService;
         }
         
         // ----------------------------
@@ -29,26 +22,19 @@ namespace DynamicMongoAPI.Controllers
         public async Task<IActionResult> Restore(string entity, string id)
         {
             try
-            {
-                var schema = await _schemaService.GetSchemaAsync(entity);
-                var db = _schemaService.GetDatabase(schema);
-                var collection = db.GetCollection<BsonDocument>(entity);
+            {                
+                var result = await _historyService.RestoreAsync(entity, id);
                 
-                var filter = Builders<BsonDocument>.Filter.Eq("_id", _dynamicMongoService.ToObjectId(id));
-                
-                var update = Builders<BsonDocument>.Update
-                    .Set("isDeleted", false)
-                    .Unset("deletedAt")
-                    .Set("updatedAt", DateTime.UtcNow);
-                
-                var result = await collection.UpdateOneAsync(filter, update);
-                
-                if (result.ModifiedCount == 0)
+                if (result == null)
                 {
                     return NotFound(new { error = "Document not found or already restored" });
                 }
                 
-                return Ok(new { message = "Document restored successfully" });
+                return Ok(new 
+                { 
+                    message = "Document restored successfully",
+                    id = result.Id
+                });
             }
             catch (Exception ex)
             {
@@ -64,13 +50,7 @@ namespace DynamicMongoAPI.Controllers
         {
             try
             {
-                var schema = await _schemaService.GetSchemaAsync(entity);
-                var db = _schemaService.GetDatabase(schema);
-                var collection = db.GetCollection<BsonDocument>(entity);
-                await collection.DeleteManyAsync(FilterDefinition<BsonDocument>.Empty);
-                
-                var histCollection = db.GetCollection<BsonDocument>(entity + "_history");
-                await histCollection.DeleteManyAsync(FilterDefinition<BsonDocument>.Empty);
+                await _historyService.PurgeAsync(entity);
                 
                 return Ok(new { message = $"All documents purged for entity '{entity}'" });
             }
@@ -88,21 +68,8 @@ namespace DynamicMongoAPI.Controllers
         {
             try
             {
-                var schema = await _schemaService.GetSchemaAsync(entity);
-                var db = _schemaService.GetDatabase(schema);
-                var histCollection = db.GetCollection<BsonDocument>(entity + "_history");
-                
-                var filter = Builders<BsonDocument>.Filter.Eq("documentId", _dynamicMongoService.ToObjectId(id));
-                var total = await histCollection.CountDocumentsAsync(filter);
-                
-                var docs = await histCollection.Find(filter)
-                                         .Sort(Builders<BsonDocument>.Sort.Descending("timestamp"))
-                                         .Skip((page - 1) * pageSize)
-                                         .Limit(pageSize)
-                                         .ToListAsync();
-                
-                // Convert BsonDocuments to Dictionary objects for proper JSON serialization
-                var resultData = docs.Select(BsonConverter.BsonToDictionary).ToList();
+                var total = await _historyService.CountAsync(entity, id);
+                var resultData = await _historyService.HistoryAsync(entity, id, page, pageSize);
                 
                 return Ok(new
                 {

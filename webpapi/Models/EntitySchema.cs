@@ -1,175 +1,339 @@
-using System.Text.Json.Serialization;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
 namespace DynamicMongoAPI.Models
 {
+    public enum FieldType
+    {
+        String,
+        Number,
+        Boolean,
+        Date,
+        Object,
+        Array
+    }
+
+    public enum RuleAction
+    {
+        Create,
+        Update,
+        Delete
+    }
+
+    public enum RelationType
+    {
+        OneToOne,
+        ManyToOne,
+        ManyToMany
+    }
+
+    public class SchemaField
+    {
+        [BsonElement("name")]
+        public string Name { get; set; } = string.Empty;
+
+        [BsonElement("type")]
+        [BsonRepresentation(BsonType.String)]
+        public FieldType Type { get; set; }
+
+        [BsonElement("required")]
+        public bool Required { get; set; }
+
+        [BsonElement("enum")]
+        public List<string>? EnumValues { get; set; }
+
+        [BsonElement("function")]
+        public string? Function { get; set; }
+    }
+
+    public class SchemaRelation
+    {
+        public string Collection { get; set; } = string.Empty;
+        public string ForeignField { get; set; } = "_id";
+        public string As { get; set; } = string.Empty;
+
+        public RelationType Type { get; set; } = RelationType.ManyToOne;
+        public bool IsNullable { get; set; } = true;
+        public object? DefaultValue { get; set; } = null;
+    }
+
+    public class VirtualField
+    {
+        public string Name { get; set; } = string.Empty;
+
+        public string Expression { get; set; } = string.Empty;
+    }
+
+    public class RuleDefinition
+    {
+        [BsonRepresentation(BsonType.String)]
+        public RuleAction Action { get; set; }
+
+        public RuleFilter? Rule { get; set; }
+
+        public string Message { get; set; } = "Business rule violated";
+    }
+
+    public class RuleFilter
+    {
+        /// <summary>
+        /// JSON Query Language payload from jsonquerylang.org
+        /// Example:
+        /// { "eq": ["status", "active"] }
+        /// </summary>
+        [BsonElement("jql")]
+        [BsonRepresentation(BsonType.Document)]
+        public JsonNode? Jql { get; set; }
+    }
+
+    public abstract class BaseEntity
+    {
+        [BsonId]
+        [BsonRepresentation(BsonType.ObjectId)]
+        public ObjectId Id { get; set; } = ObjectId.GenerateNewId();
+
+        public bool IsDeleted { get; set; } = false;
+
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        public DateTime? UpdatedAt { get; set; }
+
+        public DateTime? DeletedAt { get; set; }
+    }
+
+    public class EntityHistory
+    {
+        [BsonId]
+        [BsonRepresentation(BsonType.ObjectId)]
+        public ObjectId Id { get; set; }
+
+        [BsonRepresentation(BsonType.ObjectId)]
+        public ObjectId DocumentId { get; set; }
+
+        [BsonElement("timestamp")]
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+
+        [BsonElement("version")]
+        public int Version { get; set; }
+
+        // Flattened document snapshot
+        [BsonExtraElements]
+        public Dictionary<string, BsonValue> Data { get; set; } = new();
+    }
+
+    public class DynamicEntity : IDictionary<string, BsonValue>
+    {
+        [BsonId]
+        [BsonRepresentation(BsonType.ObjectId)]
+        public ObjectId Id { get; set; }
+
+        public bool IsDeleted { get; set; } = false;
+
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        public DateTime? UpdatedAt { get; set; }
+
+        /// <summary>
+        /// All non-system fields are stored here.
+        /// This keeps MongoDB serialization reliable.
+        /// </summary>
+        [BsonExtraElements]
+        public Dictionary<string, BsonValue> DynamicFields { get; set; } = new();
+
+        /// <summary>
+        /// Runtime-only warnings; not stored in DB.
+        /// Added only on GET/list/query operations.
+        /// </summary>
+        [BsonIgnore]
+        public IList<string> Warnings { get; set; } = new List<string>();
+
+        // Allow serializer to receive warnings into the document body if needed
+        public void InjectWarnings()
+        {
+            if (Warnings is { Count: > 0 })
+                DynamicFields["warnings"] = new BsonArray(Warnings);
+        }
+
+        // -------------------------------------------------------
+        // IDictionary<string, BsonValue> Implementation
+        // -------------------------------------------------------
+        public BsonValue this[string key]
+        {
+            get => DynamicFields[key];
+            set => DynamicFields[key] = value;
+        }
+
+        public ICollection<string> Keys => DynamicFields.Keys;
+        public ICollection<BsonValue> Values => DynamicFields.Values;
+        public int Count => DynamicFields.Count;
+        public bool IsReadOnly => false;
+
+        public void Add(string key, BsonValue value) => DynamicFields.Add(key, value);
+        public bool ContainsKey(string key) => DynamicFields.ContainsKey(key);
+        public bool Remove(string key) => DynamicFields.Remove(key);
+        public bool TryGetValue(string key, out BsonValue value) => DynamicFields.TryGetValue(key, out value);
+
+        public void Add(KeyValuePair<string, BsonValue> item) => Add(item.Key, item.Value);
+        public void Clear() => DynamicFields.Clear();
+        public bool Contains(KeyValuePair<string, BsonValue> item) => DynamicFields.Contains(item);
+        public void CopyTo(KeyValuePair<string, BsonValue>[] array, int arrayIndex) =>
+            ((IDictionary<string, BsonValue>)DynamicFields).CopyTo(array, arrayIndex);
+
+        public bool Remove(KeyValuePair<string, BsonValue> item) =>
+            ((IDictionary<string, BsonValue>)DynamicFields).Remove(item);
+
+        public IEnumerator<KeyValuePair<string, BsonValue>> GetEnumerator() => DynamicFields.GetEnumerator();
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+    }
+
     public class EntitySchema
     {
         [BsonId]
         [BsonRepresentation(BsonType.ObjectId)]
-        [JsonPropertyName("id")]
-        public string? Id { get; set; }
-        
+        public ObjectId Id { get; set; }
+
+        /// <summary>
+        /// Unique name of the entity (ex: "user", "customer", "order")
+        /// </summary>
         [BsonElement("entity")]
-        [JsonPropertyName("entity")]
         public string EntityName { get; set; } = string.Empty;
-        
+
+        /// <summary>
+        /// Namespace (helps group entities logically)
+        /// </summary>
         [BsonElement("namespace")]
-        [JsonPropertyName("namespace")]
         public string Namespace { get; set; } = "default";
-        
+
+        /// <summary>
+        /// User-defined data fields
+        /// </summary>
         [BsonElement("fields")]
-        [JsonPropertyName("fields")]
         public List<SchemaField>? Fields { get; set; }
-        
+
+        /// <summary>
+        /// MongoDB relations ($lookup)
+        /// </summary>
         [BsonElement("relations")]
-        [JsonPropertyName("relations")]
         public List<SchemaRelation>? Relations { get; set; }
-        
+
+        /// <summary>
+        /// Fields computed from expressions
+        /// </summary>
         [BsonElement("virtualFields")]
-        [JsonPropertyName("virtualFields")]
         public List<VirtualField>? VirtualFields { get; set; }
-        
+
+        /// <summary>
+        /// Business rules (create/update/delete validations)
+        /// </summary>
         [BsonElement("rules")]
-        [JsonPropertyName("rules")]
         public List<RuleDefinition>? Rules { get; set; }
-        
-        [BsonIgnore]
-        [JsonIgnore]
-        public ObjectId InternalId { get; set; }
-        
-        // Validate the schema before saving
+
+        /// <summary>
+        /// Validate schema properties before saving.
+        /// Ensures naming conventions and prevents conflicts.
+        /// </summary>
         public void Validate()
         {
-            // Convert entity name to lowercase
-            EntityName = EntityName.ToLower();
-            
-            // Convert namespace to lowercase
-            Namespace = Namespace.ToLower();
-            
-            // Validate fields
-            if (Fields != null)
+            EntityName = EntityName.ToLowerInvariant();
+            Namespace = Namespace.ToLowerInvariant();
+
+            ValidateFields();
+            ValidateRelations();
+            ValidateVirtualFields();
+        }
+
+        private void ValidateFields()
+        {
+            if (Fields == null) return;
+
+            var reservedNames = new HashSet<string>
             {
-                // Check for reserved field names
-                var reservedNames = new HashSet<string> { "id", "_id", "isdeleted", "createdat", "updatedat", "deletedat" };
-                
-                foreach (var field in Fields)
-                {
-                    // Convert field name to lowercase
-                    field.Name = field.Name.ToLower();
-                    
-                    // Check if field name is reserved
-                    if (reservedNames.Contains(field.Name))
-                    {
-                        throw new ArgumentException($"Field name '{field.Name}' is reserved and cannot be used");
-                    }
-                    
-                    // Validate field name format (only lowercase letters, numbers, and underscores)
-                    if (!Regex.IsMatch(field.Name, @"^[a-z0-9_]+$"))
-                    {
-                        throw new ArgumentException($"Field name '{field.Name}' must contain only lowercase letters, numbers, and underscores");
-                    }
-                }
+                "id", "_id", "isdeleted", "createdat", "updatedat", "deletedat"
+            };
+
+            foreach (var field in Fields)
+            {
+                field.Name = field.Name.ToLowerInvariant();
+
+                if (!Regex.IsMatch(field.Name, @"^[a-z0-9_]+$"))
+                    throw new ArgumentException(
+                        $"Invalid field name '{field.Name}'. Only lowercase letters, numbers, and underscores allowed."
+                    );
+
+                if (reservedNames.Contains(field.Name))
+                    throw new ArgumentException(
+                        $"Field name '{field.Name}' is reserved and cannot be used."
+                    );
             }
-            
-            // Validate relations
-            if (Relations != null)
+        }
+
+        private void ValidateRelations()
+        {
+            if (Relations == null) return;
+
+            foreach (var relation in Relations)
             {
-                foreach (var relation in Relations)
-                {
-                    // Convert collection name to lowercase
-                    relation.Collection = relation.Collection.ToLower();
-                    
-                    // Convert foreign field to lowercase
-                    relation.ForeignField = relation.ForeignField.ToLower();
-                    
-                    // Convert 'as' field to lowercase
-                    relation.As = relation.As.ToLower();
-                }
+                relation.Collection = relation.Collection.ToLowerInvariant();
+                relation.ForeignField = relation.ForeignField.ToLowerInvariant();
+                relation.As = relation.As.ToLowerInvariant();
+
+                if (!Regex.IsMatch(relation.As, @"^[a-z0-9_]+$"))
+                    throw new ArgumentException($"Invalid relation alias '{relation.As}'.");
             }
-            
-            // Validate virtual fields
-            if (VirtualFields != null)
+        }
+
+        private void ValidateVirtualFields()
+        {
+            if (VirtualFields == null) return;
+
+            foreach (var vf in VirtualFields)
             {
-                foreach (var virtualField in VirtualFields)
-                {
-                    // Convert virtual field name to lowercase
-                    virtualField.Name = virtualField.Name.ToLower();
-                }
+                vf.Name = vf.Name.ToLowerInvariant();
+
+                if (!Regex.IsMatch(vf.Name, @"^[a-z0-9_]+$"))
+                    throw new ArgumentException($"Invalid virtual field name '{vf.Name}'.");
             }
         }
     }
-    
-    public class SchemaField
+
+    public class NamespaceDefinition
     {
+        [BsonId]
+        [BsonRepresentation(BsonType.ObjectId)]
+        public ObjectId Id { get; set; }
+
         [BsonElement("name")]
-        [JsonPropertyName("name")]
-        public string Name { get; set; } = string.Empty;
-        
-        [BsonElement("type")]
-        [JsonPropertyName("type")]
-        public string Type { get; set; } = string.Empty;
-        
-        [BsonElement("required")]
-        [JsonPropertyName("required")]
-        public bool Required { get; set; }
-        
-        [BsonElement("enum")]
-        [JsonPropertyName("enum")]
-        public List<string>? EnumValues { get; set; }
-        
-        [BsonElement("function")]
-        [JsonPropertyName("function")]
-        public string? Function { get; set; }
+        public string Name { get; set; } = default!;
     }
-    
-    public class SchemaRelation
+
+    public class EntityDefinition
     {
-        [BsonElement("collection")]
-        [JsonPropertyName("collection")]
-        public string Collection { get; set; } = string.Empty;
-        
-        [BsonElement("foreignField")]
-        [JsonPropertyName("foreignField")]
-        public string ForeignField { get; set; } = "_id";
-        
-        [BsonElement("as")]
-        [JsonPropertyName("as")]
-        public string As { get; set; } = string.Empty;
-    }
-    
-    public class VirtualField
-    {
+        [BsonId]
+        [BsonRepresentation(BsonType.ObjectId)]
+        public ObjectId Id { get; set; }
+
         [BsonElement("name")]
-        [JsonPropertyName("name")]
-        public string Name { get; set; } = string.Empty;
-        
-        [BsonElement("expression")]
-        [JsonPropertyName("expression")]
-        public string Expression { get; set; } = string.Empty;
+        public string Name { get; set; } = default!;
+
+        [BsonElement("namespace")]
+        public string Namespace { get; set; } = default!;
+
+        [BsonElement("id_namespace")]
+        public ObjectId NamespaceId { get; set; }
+
+        [BsonElement("id_schema")]
+        public ObjectId? SchemaId { get; set; }
     }
-    
-    public class RuleDefinition
+
+    public class EntityResponse
     {
-        [BsonElement("action")]
-        [JsonPropertyName("action")]
-        public string Action { get; set; } = string.Empty; // create, update, delete
-        
-        [BsonElement("rule")]
-        [JsonPropertyName("rule")]
-        public RuleFilter? Rule { get; set; }
-        
-        [BsonElement("message")]
-        [JsonPropertyName("message")]
-        public string Message { get; set; } = "Business rule violated";
-    }
-    
-    public class RuleFilter
-    {
-        [BsonElement("filter")]
-        [JsonPropertyName("filter")]
-        public Dictionary<string, object> Filter { get; set; } = new Dictionary<string, object>();
+        public DynamicEntity Document { get; set; } = default!;
+        public IList<string> Warnings { get; set; } = new List<string>();
     }
 }

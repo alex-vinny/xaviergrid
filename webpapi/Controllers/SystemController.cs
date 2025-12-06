@@ -14,12 +14,20 @@ namespace DynamicMongoAPI.Controllers
         [HttpGet("functions")]
         public IActionResult GetAvailableFunctions()
         {
-            var functions = DynamicMongoService.AvailableFunctions.Values.Select(f => new {
-                name = f.Name,
-                description = f.Description,
-                type = f.Type,
-                parameters = f.Parameters,
-                example = f.Example
+            var functions = FieldFunctionService.AvailableFunctions.Select(f => new {
+                name = f.Key,
+                description = f.Key, // you can add a proper description if needed
+                type = "BsonValue => BsonValue",
+                parameters = new[] { "value" },
+                example = f.Key switch
+                {
+                    "bcrypt" => "\"password\"",
+                    "lowercase" => "\"TEXT\"",
+                    "uppercase" => "\"text\"",
+                    "date" => "null",
+                    "now" => "null",
+                    _ => ""
+                }
             }).ToArray();
 
             return Ok(functions);

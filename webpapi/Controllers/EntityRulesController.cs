@@ -1,31 +1,24 @@
-using Microsoft.AspNetCore.Mvc;
-using MongoDB.Driver;
-using MongoDB.Bson;
 using DynamicMongoAPI.Models;
 using DynamicMongoAPI.Services;
-using System.Text.Json;
-using DynamicMongoAPI.Constants;
-using System.Linq;
+using Microsoft.AspNetCore.Mvc;
 
 namespace DynamicMongoAPI.Controllers
 {
     [ApiController]
     [Route("schemas")]
-    [ApiExplorerSettings(GroupName = "Rules and Relations")]
+    [ApiExplorerSettings(GroupName = "Entity Relations")]
     public class EntityRulesController : ControllerBase
     {
-        private readonly IMongoClient _client;
-        private readonly MongoSchemaService _schemaService;
-        private readonly string _masterSchemaDatabaseName;
-        
-        public EntityRulesController(IMongoClient client, MongoSchemaService schemaService, IConfiguration configuration)
+        private readonly ISchemaService _schemaService;
+
+        public EntityRulesController(ISchemaService schemaService)
         {
-            _client = client;
             _schemaService = schemaService;
-            _masterSchemaDatabaseName = configuration["MongoDB:MasterSchemaDatabase"] ?? AppConstants.MasterSchemaDatabaseName;
         }
-        
-        // GET /schemas/{entity}/rules - Get schema rules
+
+        // ------------------------------------------
+        // GET /schemas/{entity}/rules
+        // ------------------------------------------
         [HttpGet("{entity}/rules")]
         public async Task<IActionResult> GetSchemaRules(string entity)
         {
@@ -43,23 +36,20 @@ namespace DynamicMongoAPI.Controllers
                 return StatusCode(500, new { error = $"An error occurred while retrieving schema rules: {ex.Message}" });
             }
         }
-        
-        // GET /schemas/{entity}/rules/{ruleId} - Get a specific rule from schema
+
+        // ------------------------------------------
+        // GET /schemas/{entity}/rules/{ruleId}
+        // ------------------------------------------
         [HttpGet("{entity}/rules/{ruleId}")]
         public async Task<IActionResult> GetSchemaRule(string entity, int ruleId)
         {
             try
             {
                 var schema = await _schemaService.GetSchemaAsync(entity);
-                
-                // Check if rules exist
-                if (schema.Rules == null || schema.Rules.Count == 0)
-                    return NotFound(new { error = "No rules found for this schema" });
-                
-                // Check if rule index is valid
-                if (ruleId < 0 || ruleId >= schema.Rules.Count)
-                    return NotFound(new { error = $"Rule with ID '{ruleId}' not found" });
-                
+
+                if (schema.Rules == null || ruleId < 0 || ruleId >= schema.Rules.Count)
+                    return NotFound(new { error = "Rule not found" });
+
                 return Ok(schema.Rules[ruleId]);
             }
             catch (ArgumentException ex)
@@ -71,29 +61,26 @@ namespace DynamicMongoAPI.Controllers
                 return StatusCode(500, new { error = $"An error occurred while retrieving schema rule: {ex.Message}" });
             }
         }
-        
-        // POST /schemas/{entity}/rules - Add rules to schema
+
+        // ------------------------------------------
+        // POST /schemas/{entity}/rules
+        // Add new rule(s)
+        // ------------------------------------------
         [HttpPost("{entity}/rules")]
         public async Task<IActionResult> AddSchemaRules(string entity, [FromBody] List<RuleDefinition> rules)
         {
             try
             {
                 var schema = await _schemaService.GetSchemaAsync(entity);
-                
-                var masterDb = _client.GetDatabase(_masterSchemaDatabaseName);
-                var collection = masterDb.GetCollection<EntitySchema>("schemas");
 
-                // Add new rules to existing ones
-                if (schema.Rules == null)
-                    schema.Rules = new List<RuleDefinition>();
-                
+                schema.Rules ??= new List<RuleDefinition>();
                 schema.Rules.AddRange(rules);
-                
-                // Update the schema in database
-                var filter = Builders<EntitySchema>.Filter.Eq(s => s.Id, schema.Id);
-                await collection.ReplaceOneAsync(filter, schema);
-                
-                return Ok(new { message = $"{rules.Count} rules added successfully" });
+
+                schema.Validate(); // revalidate entire schema
+
+                await _schemaService.UpdateSchemaAsync(schema);
+
+                return Ok(new { message = $"{rules.Count} rule(s) added successfully" });
             }
             catch (ArgumentException ex)
             {
@@ -104,33 +91,26 @@ namespace DynamicMongoAPI.Controllers
                 return StatusCode(500, new { error = $"An error occurred while adding schema rules: {ex.Message}" });
             }
         }
-        
-        // PUT /schemas/{entity}/rules/{ruleId} - Change a rule from schema
+
+        // ------------------------------------------
+        // PUT /schemas/{entity}/rules/{ruleId}
+        // Update an existing rule
+        // ------------------------------------------
         [HttpPut("{entity}/rules/{ruleId}")]
         public async Task<IActionResult> UpdateSchemaRule(string entity, int ruleId, [FromBody] RuleDefinition updatedRule)
         {
             try
             {
                 var schema = await _schemaService.GetSchemaAsync(entity);
-                
-                var masterDb = _client.GetDatabase(_masterSchemaDatabaseName);
-                var collection = masterDb.GetCollection<EntitySchema>("schemas");
 
-                // Check if rules exist
-                if (schema.Rules == null)
-                    return NotFound(new { error = "No rules found for this schema" });
-                
-                // Check if rule index is valid
-                if (ruleId < 0 || ruleId >= schema.Rules.Count)
-                    return NotFound(new { error = $"Rule with ID '{ruleId}' not found" });
-                
-                // Update the rule
+                if (schema.Rules == null || ruleId < 0 || ruleId >= schema.Rules.Count)
+                    return NotFound(new { error = "Rule not found" });
+
                 schema.Rules[ruleId] = updatedRule;
-                
-                // Update the schema in database
-                var filter = Builders<EntitySchema>.Filter.Eq(s => s.Id, schema.Id);
-                await collection.ReplaceOneAsync(filter, schema);
-                
+                schema.Validate();
+
+                await _schemaService.UpdateSchemaAsync(schema);
+
                 return Ok(new { message = "Rule updated successfully" });
             }
             catch (ArgumentException ex)
@@ -142,25 +122,21 @@ namespace DynamicMongoAPI.Controllers
                 return StatusCode(500, new { error = $"An error occurred while updating schema rule: {ex.Message}" });
             }
         }
-        
-        // DELETE /schemas/{entity}/rules - Delete all rules from schema
+
+        // ------------------------------------------
+        // DELETE /schemas/{entity}/rules
+        // Delete ALL rules
+        // ------------------------------------------
         [HttpDelete("{entity}/rules")]
         public async Task<IActionResult> DeleteSchemaRules(string entity)
         {
             try
             {
                 var schema = await _schemaService.GetSchemaAsync(entity);
-                
-                var masterDb = _client.GetDatabase(_masterSchemaDatabaseName);
-                var collection = masterDb.GetCollection<EntitySchema>("schemas");
 
-                // Clear all rules
                 schema.Rules = new List<RuleDefinition>();
-                
-                // Update the schema in database
-                var filter = Builders<EntitySchema>.Filter.Eq(s => s.Id, schema.Id);
-                await collection.ReplaceOneAsync(filter, schema);
-                
+                await _schemaService.UpdateSchemaAsync(schema);
+
                 return Ok(new { message = "All rules deleted successfully" });
             }
             catch (ArgumentException ex)
@@ -172,33 +148,23 @@ namespace DynamicMongoAPI.Controllers
                 return StatusCode(500, new { error = $"An error occurred while deleting schema rules: {ex.Message}" });
             }
         }
-        
-        // DELETE /schemas/{entity}/rules/{ruleId} - Delete a rule from schema
+
+        // ------------------------------------------
+        // DELETE /schemas/{entity}/rules/{ruleId}
+        // ------------------------------------------
         [HttpDelete("{entity}/rules/{ruleId}")]
         public async Task<IActionResult> DeleteSchemaRule(string entity, int ruleId)
         {
             try
             {
                 var schema = await _schemaService.GetSchemaAsync(entity);
-                
-                var masterDb = _client.GetDatabase(_masterSchemaDatabaseName);
-                var collection = masterDb.GetCollection<EntitySchema>("schemas");
 
-                // Check if rules exist
-                if (schema.Rules == null || schema.Rules.Count == 0)
-                    return NotFound(new { error = "No rules found for this schema" });
-                
-                // Check if rule index is valid
-                if (ruleId < 0 || ruleId >= schema.Rules.Count)
-                    return NotFound(new { error = $"Rule with ID '{ruleId}' not found" });
-                
-                // Remove the rule at the specified index
+                if (schema.Rules == null || ruleId < 0 || ruleId >= schema.Rules.Count)
+                    return NotFound(new { error = "Rule not found" });
+
                 schema.Rules.RemoveAt(ruleId);
-                
-                // Update the schema in database
-                var filter = Builders<EntitySchema>.Filter.Eq(s => s.Id, schema.Id);
-                await collection.ReplaceOneAsync(filter, schema);
-                
+                await _schemaService.UpdateSchemaAsync(schema);
+
                 return Ok(new { message = "Rule deleted successfully" });
             }
             catch (ArgumentException ex)

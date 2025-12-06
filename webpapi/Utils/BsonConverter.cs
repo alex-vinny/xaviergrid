@@ -8,6 +8,9 @@ namespace DynamicMongoAPI.Utils
 {
     public static class BsonConverter
     {
+        public static ObjectId ToObjectId(string id) =>
+            ObjectId.TryParse(id, out var oid) ? oid : ObjectId.Empty;
+
         // Helper method to convert JsonElement to BsonDocument
         public static BsonDocument JsonToBson(JsonElement json)
         {

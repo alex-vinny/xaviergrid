@@ -1,7 +1,5 @@
-using Microsoft.AspNetCore.Mvc;
-using MongoDB.Bson;
 using DynamicMongoAPI.Services;
-using System.Linq;
+using Microsoft.AspNetCore.Mvc;
 
 namespace DynamicMongoAPI.Controllers
 {
@@ -10,72 +8,38 @@ namespace DynamicMongoAPI.Controllers
     [ApiExplorerSettings(GroupName = "Namespaces")]
     public class NamespaceController : ControllerBase
     {
-        private readonly MongoSchemaService _schemaService;
-        private readonly string _masterSchemaDatabaseName;
-        
-        public NamespaceController(MongoSchemaService schemaService, IConfiguration configuration)
+        private readonly INamespaceService _namespaceService;
+
+        public NamespaceController(INamespaceService namespaceService)
         {
-            _schemaService = schemaService;
-            _masterSchemaDatabaseName = configuration["MongoDB:MasterSchemaDatabase"] ?? "xgrid";
+            _namespaceService = namespaceService;
         }
-        
-        /// <summary>
-        /// Get all namespaces
-        /// </summary>
-        /// <returns>List of namespace names</returns>
+
         [HttpGet]
         public async Task<IActionResult> GetNamespaces()
         {
             try
             {
-                var namespacesCollection = _schemaService.GetMasterCollection<BsonDocument>("namespaces");
-                
-                var namespaces = await namespacesCollection
-                    .Find(_ => true)
-                    .ToListAsync();
-                
-                // Extract just the namespace names as string array
-                var namespaceNames = namespaces
-                    .Select(n => n.GetValue("name", "").AsString)
-                    .Where(n => !string.IsNullOrEmpty(n))
-                    .ToArray();
-                
-                return Ok(namespaceNames);
+                var namespaces = await _namespaceService.ListNamespacesAsync();
+                return Ok(namespaces);
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { error = $"An error occurred while retrieving namespaces: {ex.Message}" });
+                return StatusCode(500, new { error = ex.Message });
             }
         }
-        
-        /// <summary>
-        /// Get all entities for a specific namespace
-        /// </summary>
-        /// <param name="ns">The namespace name</param>
-        /// <returns>List of entity names</returns>
-        [HttpGet("/api/{ns}/entities")]
+
+        [HttpGet("{ns}/entities")]
         public async Task<IActionResult> GetEntitiesByNamespace(string ns)
         {
             try
             {
-                var entitiesCollection = _schemaService.GetMasterCollection<BsonDocument>("entities");
-                
-                var filter = Builders<BsonDocument>.Filter.Eq("namespace", ns.ToLower());
-                var entities = await entitiesCollection
-                    .Find(filter)
-                    .ToListAsync();
-                
-                // Extract just the entity names as string array
-                var entityNames = entities
-                    .Select(e => e.GetValue("name", "").AsString)
-                    .Where(n => !string.IsNullOrEmpty(n))
-                    .ToArray();
-                
-                return Ok(entityNames);
+                var entities = await _namespaceService.ListEntitiesAsync(ns);
+                return Ok(entities);
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { error = $"An error occurred while retrieving entities: {ex.Message}" });
+                return StatusCode(500, new { error = ex.Message });
             }
         }
     }

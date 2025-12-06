@@ -80,7 +80,7 @@ namespace DynamicMongoAPI.Controllers
 
                 foreach (var schema in schemas)
                 {
-                    await _schemaService.CreateAsync(schema);
+                    await _schemaService.CreateSchemaAsync(schema);
                 }
 
                 return Ok(new 
@@ -111,7 +111,7 @@ namespace DynamicMongoAPI.Controllers
                 // Validate the schema before saving it
                 schema.Validate();
 
-                await _schemaService.UpdateAsync(schema);
+                await _schemaService.UpdateSchemaAsync(schema);
 
                 return Ok(new
                 {
@@ -134,7 +134,7 @@ namespace DynamicMongoAPI.Controllers
         {
             try
             {
-                var schemas = await _schemaService.ListAsync();
+                var schemas = await _schemaService.ListSchemaAsync();
                 return Ok(schemas);
             }
             catch (Exception ex)
@@ -148,7 +148,7 @@ namespace DynamicMongoAPI.Controllers
         {
             try
             {
-                var schema = await _schemaService.GetAsync(entityName);
+                var schema = await _schemaService.GetSchemaAsync(entityName);
 
                 return Ok(schema);
             }
