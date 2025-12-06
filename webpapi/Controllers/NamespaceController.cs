@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace DynamicMongoAPI.Controllers
 {
     [ApiController]
-    [Route("api/namespaces")]
+    [Route("api")]
     [ApiExplorerSettings(GroupName = "Namespaces")]
     public class NamespaceController : ControllerBase
     {
@@ -15,7 +15,7 @@ namespace DynamicMongoAPI.Controllers
             _namespaceService = namespaceService;
         }
 
-        [HttpGet]
+        [HttpGet("namespaces")]
         public async Task<IActionResult> GetNamespaces()
         {
             try
@@ -29,12 +29,12 @@ namespace DynamicMongoAPI.Controllers
             }
         }
 
-        [HttpGet("{ns}/entities")]
-        public async Task<IActionResult> GetEntitiesByNamespace(string ns)
+        [HttpGet("{namespace}/entities")]
+        public async Task<IActionResult> GetEntitiesByNamespace(string @namespace)
         {
             try
             {
-                var entities = await _namespaceService.ListEntitiesAsync(ns);
+                var entities = await _namespaceService.ListEntitiesAsync(@namespace);
                 return Ok(entities);
             }
             catch (Exception ex)
