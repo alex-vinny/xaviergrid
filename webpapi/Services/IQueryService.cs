@@ -1,5 +1,6 @@
 using MongoDB.Bson;
 using MongoDB.Driver;
+using System.Text.Json;
 
 namespace DynamicMongoAPI.Services
 {
@@ -7,5 +8,6 @@ namespace DynamicMongoAPI.Services
     {
         FilterDefinition<BsonDocument> BuildFilterFromQuery(BsonDocument query);
         BsonDocument[] SanitizeAggregationPipeline(BsonArray pipeline);
+        Task<IEnumerable<BsonDocument>> QueryAsync(string entity, JsonElement jsonQuery, MongoSchemaService schemaService);
     }
 }

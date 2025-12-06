@@ -1,6 +1,7 @@
 # Dynamic MongoDB API
 
 ## Project: XavierGrid
+
 Honor to Sainth Francis Xavier 12/03 -- the day this project started
 
 A modern .NET 8+ Web API with dynamic MongoDB operations including CRUD, soft delete, history tracking, multi-level joins, and more.
@@ -25,6 +26,12 @@ A modern .NET 8+ Web API with dynamic MongoDB operations including CRUD, soft de
 DynamicMongoAPI/
 ├── Controllers/
 │   ├── DynamicMongoController.cs
+│   ├── EntityCrudController.cs
+│   ├── EntityHistoryController.cs
+│   ├── EntityQueryController.cs
+│   ├── EntityRelationsController.cs
+│   ├── EntityRulesController.cs
+│   ├── NamespaceController.cs
 │   ├── SchemaController.cs
 │   ├── SystemController.cs
 │   └── SwaggerController.cs
@@ -60,34 +67,144 @@ The application supports the following environment variables for configuration:
 ## API Endpoints
 
 ### Crud Entity Operations
-- `POST /api/{entity}` - Create document
+
 - `GET /api/{entity}/{id}` - Get document by ID
-- `PUT/PATCH /api/{entity}/{id}` - Update document
+
+- `POST /api/query/{entity}` - Query entity using JSONQueryLang syntax
+- `POST /api/{entity}/aggregate` - Dynamic aggregation (will be replaced by `/api/query/{entity}`)
+
+- `POST /api/{entity}` - Create document
+- `PUT /api/{entity}/{id}` - Update document
 - `DELETE /api/{entity}/{id}` - Soft delete document
 
 ### Entity History Operations
+
 - `POST /api/{entity}/{id}/restore` - Restore deleted document
 - `POST /api/{entity}/purge` - Purge all documents
 - `GET /api/{entity}/{id}/history` - Get document history
 
-### Entity Advanced Operations
-- `POST /api/{entity}/search` - Dynamic search
-- `POST /api/{entity}/aggregate` - Dynamic aggregation
+#### JSONQueryLang Syntax
+
+The JSONQueryLang syntax supports the following operations:
+
+##### Filter
+
+Use the `filter` property to specify query conditions:
+
+```json
+{
+  "filter": {
+    "status": "active",
+    "price": { "$gt": 100 }
+  }
+}
+```
+
+##### Sort
+
+Use the `sort` property to specify sort order:
+
+```json
+{
+  "sort": {
+    "createdAt": "desc",
+    "name": "asc"
+  }
+}
+```
+
+##### Projection (Map)
+
+Use the `map` property to specify which fields to include in the response:
+
+```json
+{
+  "map": {
+    "name": "name",
+    "price": "price"
+  }
+}
+```
+
+##### Pagination
+
+Use `limit` and `skip` properties for pagination:
+
+```json
+{
+  "limit": 10,
+  "skip": 20
+}
+```
+
+##### Joins
+
+Use the `join` property to perform lookups:
+
+```json
+{
+  "join": {
+    "from": "orders",
+    "localField": "customerId",
+    "foreignField": "_id",
+    "as": "orders"
+  }
+}
+```
+
+##### Aggregation
+
+Use the `aggregate` property to specify aggregation pipelines:
+
+```json
+{
+  "aggregate": [
+    { "$group": { "_id": "$category", "total": { "$sum": "$price" } } },
+    { "$sort": { "total": -1 } }
+  ]
+}
+```
+
+##### Combined Example
+
+You can combine multiple operations in a single query:
+
+```json
+{
+  "filter": { "status": "active" },
+  "sort": { "createdAt": "desc" },
+  "map": { "name": "name", "price": "price" },
+  "limit": 10,
+  "skip": 0
+}
+```
 
 ### Schema Operations
+
+> Note: Only fields and virtual fields
+
 - `POST /schemas` - Create schemas
 - `GET /schemas` - Get all schemas
 - `GET /schemas/{entity}` - Get schema by entity name
 
-### Rules and Relations Operations
+### Rules Operations
+
 - `GET /schemas/{entity}/rules` - Get schema rules
-- `GET /schemas/{entity}/relations` - Get schema relations
 - `POST /schemas/{entity}/rules` - Add rules to schema
-- `POST /schemas/{entity}/relations` - Add relations to schema
+- `PUT /schemas/{entity}/rules/{ruleId}` - Change a rule from schema
 - `DELETE /schemas/{entity}/rules` - Delete all rules from schema
+- `DELETE /schemas/{entity}/rules/{ruleId}` - Delete a rule from schema
+
+### Relations Operations
+
+- `GET /schemas/{entity}/relations` - Get schema relations
+- `POST /schemas/{entity}/relations` - Add relations to schema
+- `PUT /schemas/{entity}/relations/{relationId}` - Change a relation from schema
 - `DELETE /schemas/{entity}/relations` - Delete all relations from schema
+- `DELETE /schemas/{entity}/relations/{relationId}` - Delete a relation from schema
 
 ### System Operations
+
 - `GET /system/functions` - Get available functions
 - `GET /system/version` - Get API version
 

@@ -46,7 +46,11 @@ builder.Services.AddSingleton<IFieldFunctionService, FieldFunctionService>();
 builder.Services.AddSingleton<IValidationService, ValidationService>();
 builder.Services.AddSingleton<IRelationService, RelationService>();
 builder.Services.AddSingleton<IVirtualFieldService, VirtualFieldService>();
-builder.Services.AddSingleton<IQueryService, QueryService>();
+builder.Services.AddSingleton<IJsonQueryLangMongoTranslator, JsonQueryLangMongoTranslator>();
+builder.Services.AddSingleton<IQueryService, QueryService>(provider =>
+    new QueryService(
+        provider.GetRequiredService<IJsonQueryLangMongoTranslator>()
+    ));
 
 builder.Services.AddSingleton<DynamicMongoService>(provider =>
     new DynamicMongoService(

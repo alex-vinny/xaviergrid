@@ -157,16 +157,19 @@ namespace DynamicMongoAPI.Models
         [JsonPropertyName("action")]
         public string Action { get; set; } = string.Empty; // create, update, delete
         
-        [BsonElement("field")]
-        [JsonPropertyName("field")]
-        public string? Field { get; set; }
-        
-        [BsonElement("allowedValues")]
-        [JsonPropertyName("allowedValues")]
-        public List<string>? AllowedValues { get; set; }
+        [BsonElement("rule")]
+        [JsonPropertyName("rule")]
+        public RuleFilter? Rule { get; set; }
         
         [BsonElement("message")]
         [JsonPropertyName("message")]
         public string Message { get; set; } = "Business rule violated";
+    }
+    
+    public class RuleFilter
+    {
+        [BsonElement("filter")]
+        [JsonPropertyName("filter")]
+        public Dictionary<string, object> Filter { get; set; } = new Dictionary<string, object>();
     }
 }

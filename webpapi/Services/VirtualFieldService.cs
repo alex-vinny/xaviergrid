@@ -21,7 +21,7 @@ namespace DynamicMongoAPI.Services
             // Replace field references with their values
             foreach (var field in fieldRefs)
             {
-                var value = doc[field].ToString();
+                var value = doc[field]?.ToString() ?? string.Empty;
                 // Escape special regex characters in the value
                 var escapedValue = Regex.Escape(value);
                 result = Regex.Replace(result, $@"\b{field}\b", value);

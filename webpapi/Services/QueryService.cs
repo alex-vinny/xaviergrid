@@ -1,11 +1,20 @@
 using MongoDB.Bson;
 using MongoDB.Driver;
 using System.Text.RegularExpressions;
+using System.Text.Json;
+using DynamicMongoAPI.Models;
 
 namespace DynamicMongoAPI.Services
 {
     public class QueryService : IQueryService
     {
+        private readonly IJsonQueryLangMongoTranslator _translator;
+        
+        public QueryService(IJsonQueryLangMongoTranslator translator)
+        {
+            _translator = translator;
+        }
+        
         // Enhanced filter building with support for operators
         public FilterDefinition<BsonDocument> BuildFilterFromQuery(BsonDocument query)
         {
@@ -94,6 +103,22 @@ namespace DynamicMongoAPI.Services
             }
             
             return sanitizedPipeline.ToArray();
+        }
+        
+        // New QueryAsync method using JSONQueryLang translator
+        public async Task<IEnumerable<BsonDocument>> QueryAsync(string entity, JsonElement jsonQuery, MongoSchemaService schemaService)
+        {
+            var schema = await schemaService.GetSchemaAsync(entity);
+            var db = schemaService.GetDatabase(schema);
+            var collection = db.GetCollection<BsonDocument>(entity);
+            
+            var pipeline = _translator.Translate(jsonQuery);
+            
+            var result = await collection
+                .Aggregate<BsonDocument>(pipeline)
+                .ToListAsync();
+            
+            return result;
         }
     }
 }

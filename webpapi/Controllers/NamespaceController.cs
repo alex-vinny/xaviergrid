@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
-using MongoDB.Driver;
 using MongoDB.Bson;
 using DynamicMongoAPI.Services;
+using System.Linq;
 
 namespace DynamicMongoAPI.Controllers
 {
@@ -10,12 +10,12 @@ namespace DynamicMongoAPI.Controllers
     [ApiExplorerSettings(GroupName = "Namespaces")]
     public class NamespaceController : ControllerBase
     {
-        private readonly IMongoClient _client;
+        private readonly MongoSchemaService _schemaService;
         private readonly string _masterSchemaDatabaseName;
         
-        public NamespaceController(IMongoClient client, IConfiguration configuration)
+        public NamespaceController(MongoSchemaService schemaService, IConfiguration configuration)
         {
-            _client = client;
+            _schemaService = schemaService;
             _masterSchemaDatabaseName = configuration["MongoDB:MasterSchemaDatabase"] ?? "xgrid";
         }
         
@@ -28,8 +28,7 @@ namespace DynamicMongoAPI.Controllers
         {
             try
             {
-                var masterDb = _client.GetDatabase(_masterSchemaDatabaseName);
-                var namespacesCollection = masterDb.GetCollection<BsonDocument>("namespaces");
+                var namespacesCollection = _schemaService.GetMasterCollection<BsonDocument>("namespaces");
                 
                 var namespaces = await namespacesCollection
                     .Find(_ => true)
@@ -59,8 +58,7 @@ namespace DynamicMongoAPI.Controllers
         {
             try
             {
-                var masterDb = _client.GetDatabase(_masterSchemaDatabaseName);
-                var entitiesCollection = masterDb.GetCollection<BsonDocument>("entities");
+                var entitiesCollection = _schemaService.GetMasterCollection<BsonDocument>("entities");
                 
                 var filter = Builders<BsonDocument>.Filter.Eq("namespace", ns.ToLower());
                 var entities = await entitiesCollection
@@ -82,4 +80,3 @@ namespace DynamicMongoAPI.Controllers
         }
     }
 }
-

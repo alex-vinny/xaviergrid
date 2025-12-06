@@ -1,5 +1,8 @@
 using MongoDB.Bson;
+using MongoDB.Driver;
+using MongoDB.Driver.Linq;
 using DynamicMongoAPI.Models;
+using System.Text.Json;
 
 namespace DynamicMongoAPI.Services
 {
@@ -15,7 +18,7 @@ namespace DynamicMongoAPI.Services
                 if (field.EnumValues == null || field.EnumValues.Count == 0) continue;
                 
                 var value = doc[field.Name].ToString();
-                if (!field.EnumValues.Contains(value))
+                if (field.EnumValues != null && !field.EnumValues.Contains(value))
                 {
                     throw new ArgumentException($"Field '{field.Name}' must be one of: {string.Join(", ", field.EnumValues)}");
                 }
@@ -26,26 +29,25 @@ namespace DynamicMongoAPI.Services
         {
             if (rules == null || rules.Count == 0) return;
             
+            var ruleValidator = new RuleValidator();
+            
             foreach (var rule in rules)
             {
                 if (!string.Equals(rule.Action, action, StringComparison.OrdinalIgnoreCase)) continue;
                 
-                bool violates = false;
-                
-                if (!string.IsNullOrEmpty(rule.Field) && rule.AllowedValues != null && rule.AllowedValues.Count > 0)
+                // Handle new JSONQueryLang format
+                if (rule.Rule != null && rule.Rule.Filter.Any())
                 {
-                    var field = rule.Field;
-                    var allowed = rule.AllowedValues;
+                    var docJson = JsonSerializer.Serialize(doc);
+                    var filterJson = JsonSerializer.Serialize(rule.Rule.Filter);
                     
-                    if (doc.Contains(field) && !allowed.Contains(doc[field].ToString()))
+                    var docJsonDoc = JsonDocument.Parse(docJson);
+                    var filterJsonDoc = JsonDocument.Parse(filterJson);
+                    
+                    if (!ruleValidator.Validate(docJsonDoc, filterJsonDoc))
                     {
-                        violates = true;
+                        throw new InvalidOperationException(rule.Message ?? "Business rule violated");
                     }
-                }
-                
-                if (violates)
-                {
-                    throw new InvalidOperationException(rule.Message ?? "Business rule violated");
                 }
             }
         }

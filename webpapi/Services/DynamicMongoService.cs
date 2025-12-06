@@ -4,6 +4,7 @@ using DynamicMongoAPI.Models;
 using BCrypt.Net;
 using System.Text.RegularExpressions;
 using DynamicMongoAPI.Constants;
+using System.Text.Json;
 
 namespace DynamicMongoAPI.Services
 {
@@ -134,6 +135,12 @@ namespace DynamicMongoAPI.Services
         public BsonDocument[] SanitizeAggregationPipeline(BsonArray pipeline)
         {
             return _queryService.SanitizeAggregationPipeline(pipeline);
+        }
+        
+        // New QueryAsync method using JSONQueryLang
+        public async Task<IEnumerable<BsonDocument>> QueryAsync(string entity, JsonElement jsonQuery)
+        {
+            return await _queryService.QueryAsync(entity, jsonQuery, _schemaService);
         }
     }
     

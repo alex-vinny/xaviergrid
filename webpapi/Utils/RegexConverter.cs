@@ -10,7 +10,7 @@ namespace DynamicMongoAPI.Utils
         public override string Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             // Return the raw string value - no transformation needed during deserialization
-            return reader.GetString();
+            return reader.GetString() ?? string.Empty;
         }
 
         public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options)
