@@ -1,19 +1,19 @@
-using DynamicMongoAPI.Constants;
 using DynamicMongoAPI.Models;
-using MongoDB.Bson;
 using MongoDB.Driver;
-using MongoDB.Driver.Linq;
 
 namespace DynamicMongoAPI.Services
 {
     public class NamespaceService : BaseDataService, INamespaceService
     {
+        private readonly ISchemaService _schemaService;
         private readonly IMongoCollection<NamespaceDefinition> _namespaces;
         private readonly IMongoCollection<EntityDefinition> _entities;
 
-        public NamespaceService(IMongoClient client, IConfiguration config, IMetadataService metadataService)
-            : base(client, config, metadataService)
+        public NamespaceService(IMongoClient client, IConfiguration config, ISchemaService schemaService)
+            : base(client, config)
         {
+            _schemaService = schemaService;
+
             var db = GetSchemaDatabase(); // get the schema database
             _namespaces = db.GetCollection<NamespaceDefinition>("namespaces");
             _entities = db.GetCollection<EntityDefinition>("entities");
@@ -36,6 +36,26 @@ namespace DynamicMongoAPI.Services
                 .Find(e => e.Namespace == ns)
                 .Project(e => e.Name)
                 .ToListAsync();
+        }
+
+        public async Task<string> GetNamespaceForEntityAsync(string entityName)
+        {
+            var schema = await _schemaService.GetSchemaAsync(entityName);
+            return schema.Namespace;
+        }
+
+        public Task<IMongoDatabase> GetNamespaceDatabaseAsync(string namespaceName)
+        {
+            // Namespace == Database name
+            return Task.FromResult(_client.GetDatabase(namespaceName));
+        }
+
+        public async Task<IMongoCollection<T>> GetNamespaceCollectionAsync<T>(
+            string namespaceName,
+            string collectionName)
+        {
+            var db = await GetNamespaceDatabaseAsync(namespaceName);
+            return db.GetCollection<T>(collectionName);
         }
     }
 }

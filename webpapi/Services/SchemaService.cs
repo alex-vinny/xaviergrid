@@ -1,6 +1,4 @@
-using DynamicMongoAPI.Constants;
 using DynamicMongoAPI.Models;
-using MongoDB.Bson;
 using MongoDB.Driver;
 using MongoDB.Driver.Linq;
 
@@ -14,9 +12,8 @@ namespace DynamicMongoAPI.Services
         public SchemaService(
             IMongoClient client,
             IConfiguration config,
-            IMetadataService metadataService,
             INamespaceManagementService nsAdmin)
-            : base(client, config, metadataService)
+            : base(client, config)
         {
             var db = GetSchemaDatabase(); // get the schema database
             _schemas = db.GetCollection<EntitySchema>("schemas");

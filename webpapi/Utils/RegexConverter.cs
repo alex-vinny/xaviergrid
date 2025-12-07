@@ -1,10 +1,8 @@
 using DynamicMongoAPI.Constants;
 using DynamicMongoAPI.Services;
 using MongoDB.Driver;
-using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
 
 namespace DynamicMongoAPI.Utils
 {
@@ -18,8 +16,8 @@ namespace DynamicMongoAPI.Utils
 
         public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options)
         {
-            // Escape regex-specific characters when writing to JSON
-            writer.WriteStringValue(Regex.Escape(value));
+            // Write string value as-is without escaping
+            writer.WriteStringValue(value);
         }
     }
 
@@ -39,45 +37,17 @@ namespace DynamicMongoAPI.Utils
                                ?? config["MongoDB:MasterSchemaDatabase"]
                                ?? AppConstants.MasterSchemaDatabaseName;
 
-            // Metadata service
-            services.AddSingleton<IMetadataService, MetadataService>(); // <-- implement MetadataService
-
             // Namespace admin service
-            services.AddSingleton<INamespaceManagementService, NamespaceManagementService>();
-
-            // Schema service (depends on MetadataService + NamespaceManagementService)
-            services.AddSingleton<ISchemaService>(provider =>
-                new SchemaService(
-                    provider.GetRequiredService<IMongoClient>(),
-                    config,
-                    provider.GetRequiredService<IMetadataService>(),
-                    provider.GetRequiredService<INamespaceManagementService>()
-                )
-            );
-
-            // Domain services
-            services.AddSingleton<IHistoryService, HistoryService>();
-            services.AddSingleton<IRelationService, RelationService>();
-            services.AddSingleton<IFieldFunctionService, FieldFunctionService>();
-            services.AddSingleton<IRuleWarningService, RuleWarningService>();
-            services.AddSingleton<IRuleValidator, RuleValidator>();
-            services.AddSingleton<ITranslator, Translator>();
-
-            // Dynamic entity service
-            services.AddSingleton(provider =>
-                new DynamicEntityService(
-                    provider.GetRequiredService<IMongoClient>(),
-                    config,
-                    provider.GetRequiredService<ISchemaService>(),
-                    provider.GetRequiredService<IHistoryService>(),
-                    provider.GetRequiredService<IRuleValidator>(),
-                    provider.GetRequiredService<IRuleWarningService>(),
-                    provider.GetRequiredService<IFieldFunctionService>(),
-                    provider.GetRequiredService<IRelationService>(),
-                    provider.GetRequiredService<ITranslator>(),
-                    provider.GetRequiredService<IMetadataService>()
-                )
-            );
+            services.AddTransient<INamespaceService, NamespaceService>();
+            services.AddTransient<INamespaceManagementService, NamespaceManagementService>();
+            services.AddTransient<ISchemaService, SchemaService>();
+            services.AddTransient<IHistoryService, HistoryService>();
+            services.AddTransient<IRelationService, RelationService>();
+            services.AddTransient<IFieldFunctionService, FieldFunctionService>();
+            services.AddTransient<IRuleWarningService, RuleWarningService>();
+            services.AddTransient<IRuleValidator, RuleValidator>();
+            services.AddTransient<ITranslator, Translator>();
+            services.AddTransient<IDynamicEntityService, DynamicEntityService>();
 
             return services;
         }

@@ -7,15 +7,17 @@ namespace DynamicMongoAPI.Services
     public class HistoryService : BaseDataService, IHistoryService
     {
         private readonly ISchemaService _schemaService;
+        private readonly INamespaceService _namespaceService;
 
         public HistoryService(
             IMongoClient client,
             IConfiguration config,
             ISchemaService schemaService,
-            IMetadataService metadata)
-            : base(client, config, metadata)
+            INamespaceService namespaceService)
+            : base(client, config)
         {
             _schemaService = schemaService;
+            _namespaceService = namespaceService;
         }
 
         /// <summary>
@@ -24,7 +26,7 @@ namespace DynamicMongoAPI.Services
         private async Task<IMongoCollection<EntityHistory>> GetCollectionAsync(string entityName)
         {
             var schema = await _schemaService.GetSchemaAsync(entityName);
-            return await _metadataService.GetNamespaceCollectionAsync<EntityHistory>(
+            return await _namespaceService.GetNamespaceCollectionAsync<EntityHistory>(
                 schema.Namespace,
                 $"{schema.EntityName}_history"
             );

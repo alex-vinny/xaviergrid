@@ -1,8 +1,5 @@
-using Microsoft.OpenApi.Models;
-using MongoDB.Driver;
-using DynamicMongoAPI.Services;
 using DynamicMongoAPI.Utils;
-using DynamicMongoAPI.Constants;
+using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 

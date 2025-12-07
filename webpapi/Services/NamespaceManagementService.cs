@@ -1,4 +1,3 @@
-using DynamicMongoAPI.Constants;
 using DynamicMongoAPI.Models;
 using MongoDB.Bson;
 using MongoDB.Driver;
@@ -11,8 +10,8 @@ namespace DynamicMongoAPI.Services
         private readonly IMongoCollection<NamespaceDefinition> _namespaces;
         private readonly IMongoCollection<EntityDefinition> _entities;
 
-        public NamespaceManagementService(IMongoClient client, IConfiguration config, IMetadataService metadataService)
-            : base(client, config, metadataService)
+        public NamespaceManagementService(IMongoClient client, IConfiguration config)
+            : base(client, config)
         {
             var db = GetSchemaDatabase();
             _namespaces = db.GetCollection<NamespaceDefinition>("namespaces");

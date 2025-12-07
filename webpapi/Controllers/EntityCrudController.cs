@@ -11,11 +11,13 @@ namespace DynamicMongoAPI.Controllers
     [ApiExplorerSettings(GroupName = "Crud Entity")]
     public class EntityCrudController : ControllerBase
     {
-        private readonly DynamicEntityService _dynamicEntityService;
+        private readonly IDynamicEntityService _dynamicEntityService;
+        private readonly ILogger<EntityCrudController> _logger;
 
-        public EntityCrudController(DynamicEntityService dynamicEntityService)
+        public EntityCrudController(IDynamicEntityService dynamicEntityService, ILogger<EntityCrudController> logger)
         {
             _dynamicEntityService = dynamicEntityService;
+            _logger = logger;
         }
 
         // ----------------------------

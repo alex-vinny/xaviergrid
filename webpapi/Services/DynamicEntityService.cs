@@ -5,9 +5,10 @@ using System.Text.Json.Nodes;
 
 namespace DynamicMongoAPI.Services
 {
-    public class DynamicEntityService : BaseDataService
+    public class DynamicEntityService : BaseDataService, IDynamicEntityService
     {
         private readonly ISchemaService _schemaService;
+        private readonly INamespaceService _namespaceService;
         private readonly IHistoryService _history;
         private readonly IRuleValidator _ruleValidator;
         private readonly IRuleWarningService _ruleWarnings;
@@ -19,16 +20,17 @@ namespace DynamicMongoAPI.Services
             IMongoClient client,
             IConfiguration config,
             ISchemaService schemaService,
+            INamespaceService namespaceService,
             IHistoryService history,
             IRuleValidator ruleValidator,
             IRuleWarningService ruleWarnings,
             IFieldFunctionService fieldFunctions,
             IRelationService relations,
-            ITranslator translator,
-            IMetadataService metadata)
-            : base(client, config, metadata)
+            ITranslator translator)
+            : base(client, config)
         {
             _schemaService = schemaService;
+            _namespaceService = namespaceService;
             _history = history;
             _ruleValidator = ruleValidator;
             _ruleWarnings = ruleWarnings;
@@ -39,7 +41,7 @@ namespace DynamicMongoAPI.Services
 
         private async Task<IMongoCollection<DynamicEntity>> GetCollectionAsync(EntitySchema schema)
         {
-            return await _metadataService.GetNamespaceCollectionAsync<DynamicEntity>(
+            return await _namespaceService.GetNamespaceCollectionAsync<DynamicEntity>(
                 schema.Namespace,
                 schema.EntityName
             );
@@ -156,23 +158,34 @@ namespace DynamicMongoAPI.Services
 
         public async Task<IList<DynamicEntity>> ListAsync(string entityName, int page = 1, int pageSize = 50)
         {
+            // Add logging
+            Console.WriteLine($"Starting ListAsync for entity {entityName}, page {page}, pageSize {pageSize}");
+            
             var schema = await _schemaService.GetSchemaAsync(entityName);
+            Console.WriteLine($"Retrieved schema for entity {entityName}");
+            
             var col = await GetCollectionAsync(schema);
+            Console.WriteLine($"Retrieved collection for entity {entityName}");
 
             var results = await col.Find(_ => true)
                                    .Skip((page - 1) * pageSize)
                                    .Limit(pageSize)
                                    .ToListAsync();
+            Console.WriteLine($"Retrieved {results.Count} documents for entity {entityName}");
 
             foreach (var entity in results)
             {
+                Console.WriteLine($"Processing entity {entity.Id} for relations");
                 await _relations.ApplyRelationsAsync(entity, schema);
+                Console.WriteLine($"Processing entity {entity.Id} for virtual fields");
                 await _fieldFunctions.EvaluateVirtualFieldsAsync(entity, schema);
+                Console.WriteLine($"Processing entity {entity.Id} for warnings");
 
                 var warnings = await _ruleWarnings.EvaluateWarningsAsync(schema, entity);
                 entity.DynamicFields["warnings"] = new BsonArray(warnings);
             }
 
+            Console.WriteLine($"Completed ListAsync for entity {entityName}");
             return results;
         }
 

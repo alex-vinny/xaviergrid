@@ -7,15 +7,17 @@ namespace DynamicMongoAPI.Services
     public class RelationService : BaseDataService, IRelationService
     {
         private readonly ISchemaService _schemaService;
+        private readonly INamespaceService _namespaceService;
 
         public RelationService(
             IMongoClient client,
             IConfiguration config,
             ISchemaService schemaService,
-            IMetadataService metadata)
-            : base(client, config, metadata)
+            INamespaceService namespaceService)
+            : base(client, config)
         {
             _schemaService = schemaService;
+            _namespaceService = namespaceService;
         }
 
         public async Task<List<SchemaRelation>> GetRelationsAsync(string entityName)
@@ -39,7 +41,7 @@ namespace DynamicMongoAPI.Services
             schema.Relations ??= new List<SchemaRelation>();
 
             // Validate that all target collections exist in the namespace
-            var db = await _metadataService.GetNamespaceDatabaseAsync(schema.Namespace);
+            var db = await _namespaceService.GetNamespaceDatabaseAsync(schema.Namespace);
             var existingCollections = await db.ListCollectionNames().ToListAsync();
 
             foreach (var rel in relations)
@@ -61,7 +63,7 @@ namespace DynamicMongoAPI.Services
             if (schema.Relations == null || relationId < 0 || relationId >= schema.Relations.Count)
                 throw new ArgumentException("Relation not found.");
 
-            var db = await _metadataService.GetNamespaceDatabaseAsync(schema.Namespace);
+            var db = await _namespaceService.GetNamespaceDatabaseAsync(schema.Namespace);
             var existingCollections = await db.ListCollectionNames().ToListAsync();
 
             if (!existingCollections.Contains(relation.Collection))
@@ -96,7 +98,7 @@ namespace DynamicMongoAPI.Services
             if (schema.Relations == null || schema.Relations.Count == 0)
                 return;
 
-            var db = await _metadataService.GetNamespaceDatabaseAsync(schema.Namespace);
+            var db = await _namespaceService.GetNamespaceDatabaseAsync(schema.Namespace);
 
             foreach (var rel in schema.Relations)
             {
