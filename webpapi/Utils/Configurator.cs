@@ -1,20 +1,23 @@
-using MongoDB.Driver;
 using DynamicMongoAPI.Constants;
 
 namespace DynamicMongoAPI.Utils
 {
-    public class Configurator
+    public interface IConfigurator
+    {
+        string GetConnectionString();
+        string GetDatabaseName();
+    }
+
+    public class Configurator : IConfigurator
     {
         private readonly IConfiguration _configuration;
-        private readonly IMongoClient _mongoClient;
         
-        public Configurator(IConfiguration configuration, IMongoClient mongoClient)
+        public Configurator(IConfiguration configuration)
         {
             _configuration = configuration;
-            _mongoClient = mongoClient;
         }
         
-        public string GetMongoConnectionString()
+        public string GetConnectionString()
         {
             return Environment.GetEnvironmentVariable("MONGODB_CONNECTION")
                 ?? _configuration.GetConnectionString("MongoDB")
@@ -22,21 +25,11 @@ namespace DynamicMongoAPI.Utils
                 ?? throw new InvalidOperationException("MongoDB connection string not found");
         }
         
-        public string GetMasterSchemaDatabaseName()
+        public string GetDatabaseName()
         {
-            return Environment.GetEnvironmentVariable("MONGODB_MASTER_DATABASE")
-                ?? _configuration["MongoDB:MasterSchemaDatabase"]
-                ?? AppConstants.MasterSchemaDatabaseName;
-        }
-        
-        public IMongoClient GetMongoClient()
-        {
-            return _mongoClient;
-        }
-        
-        public IMongoDatabase GetMasterDatabase()
-        {
-            return _mongoClient.GetDatabase(GetMasterSchemaDatabaseName());
+            return Environment.GetEnvironmentVariable("MONGODB_DATABASE")
+                ?? _configuration["MongoDB:DatabaseName"]
+                ?? AppConstants.DatabaseName;
         }
     }
 }

@@ -1,4 +1,5 @@
 using DynamicMongoAPI.Models;
+using DynamicMongoAPI.Utils;
 using MongoDB.Driver;
 using MongoDB.Driver.Linq;
 
@@ -11,7 +12,7 @@ namespace DynamicMongoAPI.Services
 
         public SchemaService(
             IMongoClient client,
-            IConfiguration config,
+            IConfigurator config,
             INamespaceManagementService nsAdmin)
             : base(client, config)
         {

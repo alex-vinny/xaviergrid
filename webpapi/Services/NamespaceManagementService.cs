@@ -1,4 +1,5 @@
 using DynamicMongoAPI.Models;
+using DynamicMongoAPI.Utils;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using MongoDB.Driver.Linq;
@@ -10,7 +11,7 @@ namespace DynamicMongoAPI.Services
         private readonly IMongoCollection<NamespaceDefinition> _namespaces;
         private readonly IMongoCollection<EntityDefinition> _entities;
 
-        public NamespaceManagementService(IMongoClient client, IConfiguration config)
+        public NamespaceManagementService(IMongoClient client, IConfigurator config)
             : base(client, config)
         {
             var db = GetSchemaDatabase();

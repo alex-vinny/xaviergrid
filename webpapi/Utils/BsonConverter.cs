@@ -1,8 +1,6 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Linq;
 
 namespace DynamicMongoAPI.Utils
 {

@@ -1,4 +1,5 @@
 using DynamicMongoAPI.Models;
+using DynamicMongoAPI.Utils;
 using MongoDB.Driver;
 
 namespace DynamicMongoAPI.Services
@@ -9,7 +10,7 @@ namespace DynamicMongoAPI.Services
         private readonly IMongoCollection<NamespaceDefinition> _namespaces;
         private readonly IMongoCollection<EntityDefinition> _entities;
 
-        public NamespaceService(IMongoClient client, IConfiguration config, ISchemaService schemaService)
+        public NamespaceService(IMongoClient client, IConfigurator config, ISchemaService schemaService)
             : base(client, config)
         {
             _schemaService = schemaService;

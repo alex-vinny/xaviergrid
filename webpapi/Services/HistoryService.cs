@@ -1,4 +1,5 @@
 using DynamicMongoAPI.Models;
+using DynamicMongoAPI.Utils;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
@@ -11,7 +12,7 @@ namespace DynamicMongoAPI.Services
 
         public HistoryService(
             IMongoClient client,
-            IConfiguration config,
+            IConfigurator config,
             ISchemaService schemaService,
             INamespaceService namespaceService)
             : base(client, config)

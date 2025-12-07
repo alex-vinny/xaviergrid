@@ -1,6 +1,3 @@
-using DynamicMongoAPI.Constants;
-using DynamicMongoAPI.Services;
-using MongoDB.Driver;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -20,37 +17,4 @@ namespace DynamicMongoAPI.Utils
             writer.WriteStringValue(value);
         }
     }
-
-
-    public static class ServiceCollectionExtensions
-    {
-        public static IServiceCollection AddMongoServices(this IServiceCollection services, IConfiguration config)
-        {
-            // Mongo client
-            var mongoConnectionString = Environment.GetEnvironmentVariable("MONGODB_CONNECTION")
-                                        ?? config.GetConnectionString("MongoDB")
-                                        ?? config["MongoDB:ConnectionString"];
-            services.AddSingleton<IMongoClient>(new MongoClient(mongoConnectionString));
-
-            // Schema service
-            var masterSchemaDb = Environment.GetEnvironmentVariable("MONGODB_MASTER_DATABASE")
-                               ?? config["MongoDB:MasterSchemaDatabase"]
-                               ?? AppConstants.MasterSchemaDatabaseName;
-
-            // Namespace admin service
-            services.AddTransient<INamespaceService, NamespaceService>();
-            services.AddTransient<INamespaceManagementService, NamespaceManagementService>();
-            services.AddTransient<ISchemaService, SchemaService>();
-            services.AddTransient<IHistoryService, HistoryService>();
-            services.AddTransient<IRelationService, RelationService>();
-            services.AddTransient<IFieldFunctionService, FieldFunctionService>();
-            services.AddTransient<IRuleWarningService, RuleWarningService>();
-            services.AddTransient<IRuleValidator, RuleValidator>();
-            services.AddTransient<ITranslator, Translator>();
-            services.AddTransient<IDynamicEntityService, DynamicEntityService>();
-
-            return services;
-        }
-    }
-
 }

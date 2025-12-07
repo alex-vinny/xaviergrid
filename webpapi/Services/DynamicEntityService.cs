@@ -1,4 +1,5 @@
 using DynamicMongoAPI.Models;
+using DynamicMongoAPI.Utils;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using System.Text.Json.Nodes;
@@ -18,7 +19,7 @@ namespace DynamicMongoAPI.Services
 
         public DynamicEntityService(
             IMongoClient client,
-            IConfiguration config,
+            IConfigurator config,
             ISchemaService schemaService,
             INamespaceService namespaceService,
             IHistoryService history,
