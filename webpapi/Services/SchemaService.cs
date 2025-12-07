@@ -46,11 +46,14 @@ namespace DynamicMongoAPI.Services
 
         public async Task<EntitySchema[]> CreateSchemaAsync(params EntitySchema[] schemas)
         {
+            Console.WriteLine($"[SCHEMA SERVICE] Creating {schemas.Length} schemas");
             foreach (var schema in schemas)
             {
+                Console.WriteLine($"[SCHEMA SERVICE] Before validation - EntityName: '{schema?.EntityName}', Namespace: '{schema?.Namespace}', Fields count: {schema?.Fields?.Count ?? 0}");
                 schema.Validate();
                 schema.Namespace = schema.Namespace.ToLowerInvariant();
                 schema.EntityName = schema.EntityName.ToLowerInvariant();
+                Console.WriteLine($"[SCHEMA SERVICE] After validation - EntityName: '{schema.EntityName}', Namespace: '{schema.Namespace}', Fields count: {schema.Fields?.Count ?? 0}");
 
                 bool exists = await _schemas
                     .Find(s => s.EntityName == schema.EntityName && s.Namespace == schema.Namespace)

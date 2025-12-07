@@ -36,12 +36,12 @@ namespace DynamicMongoAPI.Services
 
             foreach (var rule in schema.Rules)
             {
-                if (rule.Rule?.Jql == null)
+                if (rule.Rule == null)
                     continue;
 
                 try
                 {
-                    var filter = _translator.Translate(rule.Rule.Jql.AsObject()); // FilterDefinition<DynamicEntity>
+                    var filter = _translator.Translate(rule.Rule.AsObject()); // FilterDefinition<DynamicEntity>
 
                     var filterDoc = filter.Render(
                         BsonSerializer.SerializerRegistry.GetSerializer<DynamicEntity>(),

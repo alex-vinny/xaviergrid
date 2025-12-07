@@ -13,10 +13,10 @@ namespace DynamicMongoAPI.Services
 
             foreach (var rule in schema.Rules.Where(r => r.Action == action))
             {
-                if (rule.Rule?.Jql == null)
+                if (rule.Rule == null)
                     continue;
 
-                if (!EvaluateJql(rule.Rule.Jql, entity))
+                if (!EvaluateJql(rule.Rule, entity))
                     throw new InvalidOperationException(rule.Message ?? "Rule violation detected");
             }
 

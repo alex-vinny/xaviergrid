@@ -1,6 +1,7 @@
 using DynamicMongoAPI.Models;
 using DynamicMongoAPI.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using System.Text.Json;
 
 namespace DynamicMongoAPI.Controllers
@@ -11,10 +12,12 @@ namespace DynamicMongoAPI.Controllers
     public class SchemaController : ControllerBase
     {
         private readonly ISchemaService _schemaService;
+        private readonly JsonSerializerOptions _jsonOptions;
         
-        public SchemaController(ISchemaService schemaService)
+        public SchemaController(ISchemaService schemaService, IOptions<JsonOptions> jsonOptions)
         {
             _schemaService = schemaService;
+            _jsonOptions = jsonOptions.Value.JsonSerializerOptions;
         }
         
         [HttpPost]
@@ -32,11 +35,17 @@ namespace DynamicMongoAPI.Controllers
                     {
                         try
                         {
-                            var schema = JsonSerializer.Deserialize<EntitySchema>(item.GetRawText());
+                            Console.WriteLine($"[CONTROLLER] Deserializing array item: {item.GetRawText()}");
+                            var schema = JsonSerializer.Deserialize<EntitySchema>(item.GetRawText(), _jsonOptions);
+                            // Diagnostic logging
+                            Console.WriteLine($"[DIAGNOSTIC] Deserialized schema - EntityName: '{schema?.EntityName}', Raw JSON: {item.GetRawText()}");
                             if (schema != null)
                             {
                                 // Validate the schema to ensure entity name is lowercase
                                 schema.Validate();
+                                
+                                // Diagnostic logging after validation
+                                Console.WriteLine($"[DIAGNOSTIC] After validation - EntityName: '{schema.EntityName}'");
 
                                 // Check if this entity name is already in the current request (duplicate in array)
                                 if (entityNamesInRequest.Contains(schema.EntityName))
@@ -50,7 +59,13 @@ namespace DynamicMongoAPI.Controllers
                         }
                         catch (JsonException ex)
                         {
+                            Console.WriteLine($"[CONTROLLER] JSON Exception: {ex}");
                             return BadRequest(new { error = $"Invalid JSON format: {ex.Message}" });
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[CONTROLLER] General Exception: {ex}");
+                            throw;
                         }
                     }
                 }
@@ -59,18 +74,29 @@ namespace DynamicMongoAPI.Controllers
                     // Handle single schema
                     try
                     {
-                        var schema = JsonSerializer.Deserialize<EntitySchema>(requestBody.GetRawText());
+                        Console.WriteLine($"[CONTROLLER] Deserializing single schema: {requestBody.GetRawText()}");
+                        var schema = JsonSerializer.Deserialize<EntitySchema>(requestBody.GetRawText(), _jsonOptions);
+                        // Diagnostic logging
+                        Console.WriteLine($"[DIAGNOSTIC] Deserialized single schema - EntityName: '{schema?.EntityName}', Raw JSON: {requestBody.GetRawText()}");
                         if (schema == null)
                             return BadRequest(new { error = "Invalid schema format" });
 
                         // Validate the schema before saving it
                         schema.Validate();
+                        // Diagnostic logging after validation
+                        Console.WriteLine($"[DIAGNOSTIC] After validation - EntityName: '{schema.EntityName}'");
 
                         schemas.Add(schema);
                     }
                     catch (JsonException ex)
                     {
+                        Console.WriteLine($"[CONTROLLER] JSON Exception: {ex}");
                         return BadRequest(new { error = $"Invalid JSON format: {ex.Message}" });
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[CONTROLLER] General Exception: {ex}");
+                        throw;
                     }
                 }
                 else
@@ -80,17 +106,20 @@ namespace DynamicMongoAPI.Controllers
 
                 foreach (var schema in schemas)
                 {
+                    Console.WriteLine($"[DIAGNOSTIC] Creating schema with EntityName: '{schema.EntityName}'");
                     await _schemaService.CreateSchemaAsync(schema);
                 }
 
-                return Ok(new 
-                { 
+                Console.WriteLine($"[DIAGNOSTIC] Returning response with schemas: [{string.Join(", ", schemas.Select(x => $"'{x.EntityName}'"))}]");
+                return Ok(new
+                {
                     schemas = schemas.Select(x => x.EntityName),
                     message = $"{schemas.Count} schema(s) created successfully"
                 });
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"[ERROR] Exception in CreateSchemas: {ex}");
                 return StatusCode(500, new { error = $"An error occurred while creating schemas: {ex.Message}" });
             }
         }
